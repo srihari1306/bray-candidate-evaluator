@@ -64,8 +64,8 @@ export default function Layout({ children, onLogout }: LayoutProps) {
               minWidth: 40,
               width: 40,
               height: 40,
-              borderRadius: '12px',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: '8px',
+              bgcolor: 'primary.main',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -117,8 +117,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
                 px: isRetracted ? 1 : 2,
                 justifyContent: isRetracted ? 'center' : 'flex-start',
                 ...(active && {
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main}22, ${theme.palette.primary.main}11)`,
-                  border: `1px solid ${theme.palette.primary.main}33`,
+                  bgcolor: `${theme.palette.primary.main}15`,
                   '& .MuiListItemIcon-root': {
                     color: theme.palette.primary.main,
                   },
@@ -165,15 +164,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
 
       {/* Bottom section */}
       <Box sx={{ p: isRetracted ? 1 : 2 }}>
-        {!isRetracted && (
-          <Chip
-            label="Mock Mode"
-            size="small"
-            color="secondary"
-            variant="outlined"
-            sx={{ mb: 2, width: '100%' }}
-          />
-        )}
+
         <Box
           sx={{
             p: isRetracted ? 1 : 2,

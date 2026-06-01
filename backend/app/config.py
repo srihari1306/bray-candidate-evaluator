@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     APP_NAME: str = "Candidate Evaluator"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    MOCK_MODE: bool = False  # Set True for local dev without Azure
     CORS_ORIGINS: str = "http://localhost:5174,http://localhost:3000"
 
     # ─── Azure AD / Entra ID ───

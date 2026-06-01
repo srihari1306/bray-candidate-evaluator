@@ -60,7 +60,6 @@ export interface CandidateResult {
   email: string;
   overall_score: number;
   overall_recommendation: RecommendationType;
-  jd_match_score: number;
   skill_scores: SkillScore[];
   missing_skills: string[];
   strengths: string[];
@@ -110,6 +109,5 @@ export interface EvaluationHistoryItem {
 export interface HealthResponse {
   status: string;
   version: string;
-  mock_mode: boolean;
   services: Record<string, string>;
 }

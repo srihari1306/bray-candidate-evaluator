@@ -62,7 +62,6 @@ Return a JSON object with this exact structure:
     "candidate_name": "string",
     "overall_score": number (0-100),
     "overall_recommendation": "Strong Match" | "Good Match" | "Moderate Match" | "Weak Match" | "Not Recommended",
-    "jd_match_score": number (0-100),
     "skill_scores": [
         {{
             "skill": "skill category name",

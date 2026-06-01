@@ -66,9 +66,7 @@ function App() {
     setCurrentEvaluation(e);
   };
 
-  // Mock auth (in production, use MSAL)
-  const [isAuthenticated, setIsAuthenticated] = useState(true); // Auto-login for mock mode
-
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme }}>
       <EvalContext.Provider

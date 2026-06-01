@@ -7,29 +7,29 @@ import { createTheme, ThemeOptions } from '@mui/material/styles';
 const commonOptions: ThemeOptions = {
   typography: {
     fontFamily: '"Inter", "Roboto", "Helvetica Neue", sans-serif',
-    h1: { fontWeight: 800, letterSpacing: '-0.02em' },
-    h2: { fontWeight: 700, letterSpacing: '-0.01em' },
-    h3: { fontWeight: 700 },
-    h4: { fontWeight: 600 },
-    h5: { fontWeight: 600 },
-    h6: { fontWeight: 600 },
-    button: { fontWeight: 600, textTransform: 'none' as const },
+    h1: { fontWeight: 700, letterSpacing: '-0.02em' },
+    h2: { fontWeight: 600, letterSpacing: '-0.01em' },
+    h3: { fontWeight: 600 },
+    h4: { fontWeight: 500 },
+    h5: { fontWeight: 500 },
+    h6: { fontWeight: 500 },
+    button: { fontWeight: 500, textTransform: 'none' as const },
   },
-  shape: { borderRadius: 12 },
+  shape: { borderRadius: 8 },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
-          borderRadius: 10,
-          padding: '10px 24px',
-          fontSize: '0.9rem',
+          borderRadius: 6,
+          padding: '8px 20px',
+          fontSize: '0.875rem',
           boxShadow: 'none',
-          '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
+          '&:hover': { boxShadow: 'none' },
         },
-        containedPrimary: {
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        contained: {
+          boxShadow: 'none',
           '&:hover': {
-            background: 'linear-gradient(135deg, #5a6fd6 0%, #6a4296 100%)',
+            boxShadow: 'none',
           },
         },
       },
@@ -37,24 +37,23 @@ const commonOptions: ThemeOptions = {
     MuiCard: {
       styleOverrides: {
         root: {
-          borderRadius: 16,
-          boxShadow: '0 2px 20px rgba(0,0,0,0.06)',
-          transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-          },
+          borderRadius: 12,
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+          border: '1px solid',
         },
       },
     },
     MuiChip: {
       styleOverrides: {
-        root: { fontWeight: 500 },
+        root: { fontWeight: 500, borderRadius: 6 },
       },
     },
     MuiPaper: {
       styleOverrides: {
-        root: { borderRadius: 16 },
+        root: { borderRadius: 12 },
+        elevation1: {
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+        },
       },
     },
   },
@@ -64,21 +63,21 @@ export const lightTheme = createTheme({
   ...commonOptions,
   palette: {
     mode: 'light',
-    primary: { main: '#6366f1', light: '#818cf8', dark: '#4f46e5' },
-    secondary: { main: '#14b8a6', light: '#2dd4bf', dark: '#0d9488' },
+    primary: { main: '#2563eb', light: '#60a5fa', dark: '#1d4ed8' },
+    secondary: { main: '#475569', light: '#94a3b8', dark: '#334155' },
     background: {
-      default: '#f0f2f5',
+      default: '#f8fafc',
       paper: '#ffffff',
     },
     text: {
-      primary: '#1e293b',
-      secondary: '#64748b',
+      primary: '#0f172a',
+      secondary: '#475569',
     },
-    success: { main: '#22c55e' },
-    warning: { main: '#f59e0b' },
-    error: { main: '#ef4444' },
-    info: { main: '#3b82f6' },
-    divider: 'rgba(0,0,0,0.06)',
+    success: { main: '#16a34a' },
+    warning: { main: '#d97706' },
+    error: { main: '#dc2626' },
+    info: { main: '#0284c7' },
+    divider: '#e2e8f0',
   },
 });
 
@@ -86,20 +85,20 @@ export const darkTheme = createTheme({
   ...commonOptions,
   palette: {
     mode: 'dark',
-    primary: { main: '#818cf8', light: '#a5b4fc', dark: '#6366f1' },
-    secondary: { main: '#2dd4bf', light: '#5eead4', dark: '#14b8a6' },
+    primary: { main: '#3b82f6', light: '#60a5fa', dark: '#2563eb' },
+    secondary: { main: '#94a3b8', light: '#cbd5e1', dark: '#64748b' },
     background: {
       default: '#0f172a',
       paper: '#1e293b',
     },
     text: {
-      primary: '#f1f5f9',
+      primary: '#f8fafc',
       secondary: '#94a3b8',
     },
-    success: { main: '#4ade80' },
-    warning: { main: '#fbbf24' },
-    error: { main: '#f87171' },
-    info: { main: '#60a5fa' },
-    divider: 'rgba(255,255,255,0.08)',
+    success: { main: '#22c55e' },
+    warning: { main: '#f59e0b' },
+    error: { main: '#ef4444' },
+    info: { main: '#0ea5e9' },
+    divider: '#334155',
   },
 });

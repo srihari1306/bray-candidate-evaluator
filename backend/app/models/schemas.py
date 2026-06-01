@@ -109,7 +109,6 @@ class CandidateResult(BaseModel):
     email: str = ""
     overall_score: int = Field(ge=0, le=100)
     overall_recommendation: RecommendationType
-    jd_match_score: int = Field(ge=0, le=100)
     skill_scores: list[SkillScore] = Field(default_factory=list)
     missing_skills: list[str] = Field(default_factory=list)
     strengths: list[str] = Field(default_factory=list)
@@ -131,7 +130,6 @@ class CandidateResult(BaseModel):
                 "email": "john.doe@email.com",
                 "overall_score": 87,
                 "overall_recommendation": "Strong Match",
-                "jd_match_score": 84,
                 "skill_scores": [
                     {
                         "skill": "Cloud Engineering",
@@ -199,5 +197,4 @@ class HealthResponse(BaseModel):
     """Health check response."""
     status: str = "healthy"
     version: str
-    mock_mode: bool
     services: dict[str, str] = Field(default_factory=dict)

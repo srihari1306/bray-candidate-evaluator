@@ -149,20 +149,6 @@ class DocumentIntelligenceService:
         return [r for r in completed if r is not None]
 
 
-# ─── Mock Implementation ────────────────────────────────────────────────────
-
-class MockDocumentIntelligenceService(DocumentIntelligenceService):
-    """Mock Document Intelligence for local development."""
-
-    async def extract_text(self, file_content: bytes, filename: str) -> str:
-        """Return the content directly (mock resumes are already text)."""
-        logger.info(f"[MOCK] Extracting text from: {filename}")
-        return file_content.decode("utf-8", errors="replace")
-
-
 def get_document_intelligence_service() -> DocumentIntelligenceService:
     """Factory for Document Intelligence service."""
-    settings = get_settings()
-    if settings.MOCK_MODE:
-        return MockDocumentIntelligenceService()
     return DocumentIntelligenceService()

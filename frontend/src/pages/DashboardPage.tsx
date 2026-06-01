@@ -114,7 +114,6 @@ export default function DashboardPage() {
           size="large"
           startIcon={<EvalIcon />}
           onClick={() => navigate('/evaluate')}
-          sx={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}
         >
           Start New Evaluation
         </Button>
@@ -131,7 +130,6 @@ export default function DashboardPage() {
   );
 
   // Stats
-  const avgScore = Math.round(candidates.reduce((s, c) => s + c.overall_score, 0) / candidates.length);
   const topCandidate = candidates[0];
   const strongMatches = candidates.filter((c) => c.overall_score >= 75).length;
 
@@ -139,7 +137,6 @@ export default function DashboardPage() {
   const barData = filtered.map((c) => ({
     name: c.candidate_name.split(' ')[0],
     score: c.overall_score,
-    jd: c.jd_match_score,
   }));
 
   const radarData = skillNames.map((skill) => {
@@ -179,13 +176,13 @@ export default function DashboardPage() {
       flex: 1,
       minWidth: 180,
       renderCell: (params: GridRenderCellParams) => (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, height: '100%' }}>
           <Avatar sx={{ width: 32, height: 32, bgcolor: getScoreColor(params.row.overall_score), fontSize: '0.75rem' }}>
             {params.row.candidate_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
           </Avatar>
-          <Box>
-            <Typography variant="body2" fontWeight={600}>{params.row.candidate_name}</Typography>
-            <Typography variant="caption" color="text.secondary">{params.row.email}</Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.2 }}>{params.row.candidate_name}</Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, lineHeight: 1.2 }}>{params.row.email}</Typography>
           </Box>
         </Box>
       ),
@@ -294,8 +291,8 @@ export default function DashboardPage() {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" fontWeight={800}>
-            <span className="gradient-text">Dashboard</span>
+          <Typography variant="h4" fontWeight={800} color="primary">
+            Dashboard
           </Typography>
           <Typography variant="body2" color="text.secondary">
             {currentEvaluation.job_title || 'Evaluation'} • {candidates.length} candidates •{' '}
@@ -314,19 +311,15 @@ export default function DashboardPage() {
 
       {/* Score Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={4}>
           <ScoreCard title="Total Candidates" value={candidates.length} subtitle="Resumes evaluated"
             icon={<PeopleIcon sx={{ color: '#667eea' }} />} color="#667eea" />
         </Grid>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={4}>
           <ScoreCard title="Top Score" value={topCandidate?.overall_score || 0} subtitle={topCandidate?.candidate_name}
             icon={<TrophyIcon sx={{ color: '#22c55e' }} />} color="#22c55e" />
         </Grid>
-        <Grid item xs={6} md={3}>
-          <ScoreCard title="Average Score" value={avgScore} subtitle="Across all candidates"
-            icon={<TrendIcon sx={{ color: '#f59e0b' }} />} color="#f59e0b" />
-        </Grid>
-        <Grid item xs={6} md={3}>
+        <Grid item xs={12} md={4}>
           <ScoreCard title="Strong Matches" value={strongMatches} subtitle="Score ≥ 75"
             icon={<AssessIcon sx={{ color: '#14b8a6' }} />} color="#14b8a6" />
         </Grid>
@@ -335,7 +328,7 @@ export default function DashboardPage() {
       {/* Charts */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {/* Bar Chart */}
-        <Grid item xs={12} md={7}>
+        <Grid item xs={12} md={12}>
           <Paper sx={{ p: 3, height: 360 }}>
             <Typography variant="h6" fontWeight={600} gutterBottom>Candidate Scores</Typography>
             <ResponsiveContainer width="100%" height={290}>
@@ -356,35 +349,7 @@ export default function DashboardPage() {
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
                 </Bar>
-                <Bar dataKey="jd" name="JD Match" fill={theme.palette.secondary.main} radius={[6, 6, 0, 0]} opacity={0.6} />
               </BarChart>
-            </ResponsiveContainer>
-          </Paper>
-        </Grid>
-
-        {/* Radar Chart */}
-        <Grid item xs={12} md={5}>
-          <Paper sx={{ p: 3, height: 360 }}>
-            <Typography variant="h6" fontWeight={600} gutterBottom>Skill Comparison</Typography>
-            <ResponsiveContainer width="100%" height={290}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke={theme.palette.divider} />
-                <PolarAngleAxis dataKey="skill" tick={{ fontSize: 11, fill: theme.palette.text.secondary }} />
-                <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-                {filtered.slice(0, 5).map((c, i) => (
-                  <Radar
-                    key={c.id}
-                    name={c.candidate_name.split(' ')[0]}
-                    dataKey={c.candidate_name.split(' ')[0]}
-                    stroke={CHART_COLORS[i]}
-                    fill={CHART_COLORS[i]}
-                    fillOpacity={0.15}
-                    strokeWidth={2}
-                  />
-                ))}
-                <Legend />
-                <RTooltip />
-              </RadarChart>
             </ResponsiveContainer>
           </Paper>
         </Grid>
@@ -446,6 +411,7 @@ export default function DashboardPage() {
         <DataGrid
           rows={rows}
           columns={columns}
+          rowHeight={64}
           pageSizeOptions={[5, 10, 25]}
           initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
           disableRowSelectionOnClick
@@ -556,6 +522,14 @@ export default function DashboardPage() {
               )}
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>
+              {selectedCandidate.resume_url && (
+                <Button 
+                  variant="outlined" 
+                  onClick={() => window.open(selectedCandidate.resume_url, '_blank')}
+                >
+                  View Resume
+                </Button>
+              )}
               <Button onClick={() => setDetailOpen(false)}>Close</Button>
             </DialogActions>
           </>

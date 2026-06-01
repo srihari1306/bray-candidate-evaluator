@@ -131,45 +131,6 @@ class EmbeddingService:
         logger.info("Embedding cache cleared")
 
 
-# ─── Mock Implementation ────────────────────────────────────────────────────
-
-class MockEmbeddingService(EmbeddingService):
-    """Mock embedding service using random vectors for local development."""
-
-    async def generate_embedding(self, text: str) -> list[float]:
-        """Generate a deterministic pseudo-random embedding based on text hash."""
-        cache_key = self._cache_key(text)
-        if cache_key in self._cache:
-            return self._cache[cache_key]
-
-        # Use hash for deterministic results
-        seed = int(hashlib.md5(text.encode()).hexdigest(), 16) % (2**32)
-        rng = np.random.RandomState(seed)
-        embedding = rng.randn(self.settings.EMBEDDING_DIMENSIONS).tolist()
-
-        # Normalize to unit vector
-        norm = sum(x**2 for x in embedding) ** 0.5
-        embedding = [x / norm for x in embedding]
-
-        self._cache[cache_key] = embedding
-        logger.debug(f"[MOCK] Generated {self.settings.EMBEDDING_DIMENSIONS}d embedding")
-        return embedding
-
-    async def generate_embeddings_batch(
-        self, texts: list[str], batch_size: Optional[int] = None
-    ) -> list[list[float]]:
-        """Generate mock embeddings for a batch."""
-        logger.info(f"[MOCK] Generating embeddings for {len(texts)} texts")
-        results = []
-        for text in texts:
-            emb = await self.generate_embedding(text)
-            results.append(emb)
-        return results
-
-
 def get_embedding_service() -> EmbeddingService:
     """Factory for embedding service."""
-    settings = get_settings()
-    if settings.MOCK_MODE:
-        return MockEmbeddingService()
     return EmbeddingService()

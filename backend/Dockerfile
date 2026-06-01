@@ -17,6 +17,7 @@ COPY app/ ./app/
 
 # Create non-root user
 RUN adduser --disabled-password --gecos '' appuser
+RUN mkdir -p /app/resumes && chown -R appuser:appuser /app/resumes
 USER appuser
 
 # Health check

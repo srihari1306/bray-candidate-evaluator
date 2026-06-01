@@ -7,7 +7,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import time
+import os
 
 from app.config import get_settings
 from app.utils.logger import setup_logging, get_logger
@@ -22,7 +24,6 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(debug=settings.DEBUG, structured=not settings.DEBUG)
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    logger.info(f"Mock mode: {settings.MOCK_MODE}")
 
     # Store evaluation results in-memory (replace with DB in production)
     app.state.evaluations = {}
@@ -82,6 +83,10 @@ def create_app() -> FastAPI:
     app.include_router(candidates.router, prefix="/api", tags=["Candidates"])
     app.include_router(sharepoint.router, prefix="/api", tags=["SharePoint"])
     app.include_router(history.router, prefix="/api", tags=["History"])
+
+    # Serve local resumes
+    os.makedirs("resumes", exist_ok=True)
+    app.mount("/resumes", StaticFiles(directory="resumes"), name="resumes")
 
     return app
 

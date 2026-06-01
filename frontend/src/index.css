@@ -49,55 +49,37 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-@keyframes gradientShift {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
 .animate-fade-in {
-  animation: fadeIn 0.5s ease forwards;
+  animation: fadeIn 0.4s ease forwards;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.6s ease forwards;
+  animation: slideUp 0.4s ease forwards;
 }
 
-/* ─── Glassmorphism ─── */
+/* ─── Standard Utility Classes ─── */
 .glass-card {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* Fallback for removed glass-card, maps to standard paper */
+  background: var(--mui-palette-background-paper);
+  border: 1px solid var(--mui-palette-divider);
+  border-radius: 12px;
 }
 
 /* ─── Score Colors ─── */
-.score-excellent { color: #22c55e; }
-.score-good { color: #3b82f6; }
-.score-moderate { color: #f59e0b; }
-.score-weak { color: #ef4444; }
+.score-excellent { color: #16a34a; }
+.score-good { color: #2563eb; }
+.score-moderate { color: #d97706; }
+.score-weak { color: #dc2626; }
 
-/* ─── Gradient Text ─── */
+/* ─── Gradient Text Fallback ─── */
 .gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #14b8a6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  /* Removed gradient, now uses primary color */
+  color: var(--mui-palette-primary-main);
+  font-weight: 700;
 }
 
-/* ─── Loading Skeleton ─── */
+/* ─── Loading Skeleton Fallback ─── */
 .skeleton {
-  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.1) 50%, transparent 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
+  background-color: var(--mui-palette-action-hover);
+  border-radius: 4px;
 }
