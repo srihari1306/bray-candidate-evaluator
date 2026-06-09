@@ -1,4 +1,4 @@
-import { useState, useMemo, createContext, useContext } from 'react';
+import { useState, useMemo, createContext, useContext, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { lightTheme, darkTheme } from './theme/theme';
@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage';
 import EvaluationPage from './pages/EvaluationPage';
 import HistoryPage from './pages/HistoryPage';
 import type { EvaluationResponse } from './types';
+import { api } from './services/api';
 import './index.css';
 
 // ─── Theme Context ───
@@ -29,6 +30,7 @@ interface EvalContextType {
   setCurrentEvaluation: (e: EvaluationResponse | null) => void;
   evaluationHistory: EvaluationResponse[];
   addEvaluation: (e: EvaluationResponse) => void;
+  deleteEvaluation: (id: string) => void;
 }
 
 export const EvalContext = createContext<EvalContextType>({
@@ -36,6 +38,7 @@ export const EvalContext = createContext<EvalContextType>({
   setCurrentEvaluation: () => {},
   evaluationHistory: [],
   addEvaluation: () => {},
+  deleteEvaluation: () => {},
 });
 
 export const useEvalContext = () => useContext(EvalContext);
@@ -66,11 +69,32 @@ function App() {
     setCurrentEvaluation(e);
   };
 
+  const deleteEvaluation = (id: string) => {
+    setEvaluationHistory((prev) => prev.filter((item) => item.evaluation_id !== id));
+    setCurrentEvaluation((prev) => (prev?.evaluation_id === id ? null : prev));
+  };
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      api.getHistory()
+        .then((response) => {
+          const history = response.data;
+          setEvaluationHistory(history);
+          if (history.length > 0) {
+            setCurrentEvaluation((prev) => (prev === null || prev === undefined ? history[0] : prev));
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to fetch evaluation history:', err);
+        });
+    }
+  }, [isAuthenticated]);
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme }}>
       <EvalContext.Provider
-        value={{ currentEvaluation, setCurrentEvaluation, evaluationHistory, addEvaluation }}
+        value={{ currentEvaluation, setCurrentEvaluation, evaluationHistory, addEvaluation, deleteEvaluation }}
       >
         <ThemeProvider theme={theme}>
           <CssBaseline />

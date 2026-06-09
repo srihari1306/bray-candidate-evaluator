@@ -1,0 +1,632 @@
+Smart Interviewer
+Complete Technical Specification & Build Plan
+Extension to Resume Scanner Platform
+Version 1.0  |  June 2026
+
+For use with Claude Code / Agentic coding assistants
+
+This document is the single source of truth for building the Smart Interviewer feature on top of the existing Resume Scanner. Hand this document to Claude Code or any AI coding assistant along with your project folder to begin implementation.
+
+1. Project Overview
+1.1 What is being built
+The Smart Interviewer is a new feature module added to the existing Resume Scanner platform. After a recruiter scans resumes and reviews the candidate dashboard, they can trigger a fully automated AI interview for any candidate directly from the dashboard. The system schedules the interview, emails the candidate, conducts a structured video interview through a Microsoft Teams side panel, records the session, transcribes and evaluates all answers using Azure AI, and writes scores back to the dashboard — all without recruiter involvement after the initial trigger.
+1.2 What already exists (do NOT rebuild)
+React JS frontend — resume scanner dashboard with tabular candidate analysis and scoring
+FastAPI backend — resume parsing, Azure OpenAI integration for analysis, Azure AI Search for semantic matching
+Azure OpenAI (GPT-4 + embeddings) — already provisioned and in use
+Azure AI Search — already provisioned and in use
+Azure Blob Storage — already provisioned and in use
+Microsoft 365 / Teams tenant — organisation already has this
+1.3 What is being added
+New FastAPI routes for interview lifecycle management
+Azure Communication Services (Email) — for candidate email delivery
+Azure Speech Service — for real-time speech-to-text of candidate answers
+Azure Cosmos DB — for interview sessions, transcripts, and scores
+Teams Side Panel App (React + Teams JS SDK) — the interview UI inside the Teams meeting
+In-browser recording via MediaRecorder API — captures mic + screen, uploads to Azure Blob
+Dashboard updates — Start Interview button, status badges, results columns
+1.4 Key architectural decisions
+Decision
+Choice
+Reason
+Meeting creation
+Static Teams link (created once, reused)
+Eliminates need for Microsoft Graph API and Azure AD app registration
+Candidate email
+Azure Communication Services Email
+Already in Azure ecosystem, simple REST API, no AD dependency
+Interview UI
+Teams side panel Tab app (React)
+Runs inside the meeting, same React stack as dashboard
+Recording
+MediaRecorder API in browser (mic + screen)
+Self-contained, no Teams compliance policy needed, full control
+Speech-to-text
+Azure Speech JS SDK in browser
+Real-time STT, same Azure account, no extra infrastructure
+Answer evaluation
+Azure OpenAI GPT-4 (existing)
+Reuses existing provisioned resource
+Session storage
+Azure Cosmos DB (new)
+Flexible JSON schema for interview sessions and transcripts
+
+2. Complete User & System Flow
+2.1 Recruiter flow
+Recruiter opens the Resume Scanner dashboard
+Reviews the candidate table with resume analysis scores
+Clicks "Start Interview" button in a candidate's row
+A modal appears: recruiter selects date and time for the interview
+Recruiter clicks Confirm — the system schedules the interview
+Dashboard shows status badge: Scheduled for that candidate
+When the interview completes, the dashboard auto-updates with interview scores, transcript link, and recording link
+2.2 Candidate flow
+Candidate receives an email with: their name, the interview time, a direct Teams meeting link (static link), and clear instructions to join at the scheduled time
+At the scheduled time, candidate clicks the Teams link and joins the meeting
+The Teams side panel opens automatically inside the meeting
+Stage 1 — Setup: panel instructs candidate to turn on camera, unmute microphone, and share their entire screen. A Done button confirms completion
+Recording begins automatically at this point (MediaRecorder captures mic + screen)
+Stage 2 — Question 1: the first question appears as text on the panel. Candidate reads it. When ready, clicks the mic button. Speaks their answer. Clicks Done when finished. Answer is transcribed via Azure Speech
+Question 2 appears. Same flow. Answer transcribed.
+Question 3 appears. Same flow. Answer transcribed.
+Stage 3 — Goodbye: panel shows a thank-you message. Recording stops. All data uploads to backend. Session closes.
+2.3 System background operations
+On interview schedule: FastAPI stores session in Cosmos DB, sends email via ACS
+When candidate joins and panel loads: panel fetches session data and questions from FastAPI using session token
+During interview: each answer audio is streamed to Azure Speech SDK → transcript returned to panel
+On interview complete: panel POSTs all 3 transcripts to FastAPI, uploads recording blob to Azure Blob Storage via SAS URL
+FastAPI calls Azure OpenAI to evaluate each answer → produces per-question scores and final composite score
+Cosmos DB updated with all results → dashboard polling endpoint returns new data → UI updates automatically
+
+3. Repository Structure
+3.1 Existing project structure (assumed)
+resume-scanner/
+  frontend/          ← React dashboard (existing)
+  backend/           ← FastAPI app (existing)
+  README.md
+3.2 New structure after Smart Interviewer is added
+resume-scanner/
+  frontend/                       ← existing React dashboard
+    src/
+      components/
+        CandidateTable.jsx         ← MODIFY: add Start Interview button + status + results
+        InterviewModal.jsx         ← NEW: schedule interview modal
+        InterviewResults.jsx       ← NEW: scores + links row expansion
+      hooks/
+        useInterviewStatus.js      ← NEW: polling hook for live status
+      api/
+        interviewApi.js            ← NEW: API calls to FastAPI interview routes
+
+  backend/                        ← existing FastAPI app
+    app/
+      routers/
+        interview.py              ← NEW: all interview routes
+      services/
+        interview_service.py      ← NEW: business logic
+        acs_email_service.py      ← NEW: Azure Communication Services
+        speech_service.py         ← NEW: Azure Speech token vending
+        evaluation_service.py     ← NEW: GPT-4 evaluation logic
+        blob_service.py           ← NEW or EXTEND: SAS URL generation
+      models/
+        interview_models.py       ← NEW: Pydantic schemas
+      db/
+        cosmos_client.py          ← NEW: Cosmos DB client wrapper
+
+  teams-panel/                   ← NEW: Teams side panel app (separate React project)
+    public/
+      manifest/
+        manifest.json             ← Teams app manifest
+        color.png                 ← 192x192 app icon
+        outline.png               ← 32x32 outline icon
+    src/
+      App.jsx                    ← stage router
+      index.jsx                  ← entry point
+      stages/
+        SetupStage.jsx            ← camera/mic/screen instructions
+        QuestionStage.jsx         ← question display + mic recording
+        GoodbyeStage.jsx          ← thank you screen
+      hooks/
+        useAzureSpeech.js         ← Azure Speech SDK integration
+        useMediaRecorder.js       ← full session recording
+        useTeamsContext.js        ← Teams JS SDK wrapper
+        useInterviewSession.js    ← session state management
+      api/
+        sessionApi.js             ← calls to FastAPI from within panel
+      components/
+        MicButton.jsx             ← animated mic button
+        ProgressDots.jsx          ← Q1/Q2/Q3 progress indicator
+    package.json
+    .env                          ← REACT_APP_API_BASE_URL, REACT_APP_SPEECH_REGION
+
+  infrastructure/
+    cosmos_setup.py              ← one-time Cosmos DB container creation script
+    acs_setup.md                 ← Azure Communication Services setup steps
+    speech_setup.md              ← Azure Speech Service setup steps
+
+  .env                           ← root environment variables (shared reference)
+
+4. Environment Variables
+4.1 Backend (.env in backend/)
+All existing Azure OpenAI, Search, and Blob variables remain unchanged. Add only the new variables below.
+# ── NEW: Azure Communication Services ──
+ACS_CONNECTION_STRING=endpoint=https://your-acs.communication.azure.com/;accesskey=xxx
+ACS_SENDER_EMAIL=DoNotReply@your-verified-domain.com
+
+# ── NEW: Azure Speech Service ──
+AZURE_SPEECH_KEY=your_speech_service_key
+AZURE_SPEECH_REGION=eastus   # or whichever region
+
+# ── NEW: Azure Cosmos DB ──
+COSMOS_ENDPOINT=https://your-account.documents.azure.com:443/
+COSMOS_KEY=your_cosmos_primary_key
+COSMOS_DATABASE=smart_interviewer
+COSMOS_CONTAINER=interview_sessions
+
+# ── NEW: Static Teams meeting link ──
+TEAMS_STATIC_MEETING_URL=https://teams.microsoft.com/l/meetup-join/...
+
+# ── NEW: Blob container for recordings ──
+AZURE_BLOB_RECORDINGS_CONTAINER=interview-recordings
+
+# ── NEW: Interview questions (JSON array or comma-separated) ──
+INTERVIEW_QUESTIONS=["Tell me about yourself.","Describe a challenging project you worked on.","Why are you interested in this role?"]
+
+# ── NEW: Secret for signing session tokens ──
+INTERVIEW_SESSION_SECRET=a_long_random_secret_string
+4.2 Teams panel (.env in teams-panel/)
+REACT_APP_API_BASE_URL=https://your-backend-url.azurewebsites.net
+REACT_APP_SPEECH_KEY=your_speech_service_key
+REACT_APP_SPEECH_REGION=eastus
+
+5. Cosmos DB Data Schema
+5.1 Database and container
+Database name: smart_interviewer
+Container name: interview_sessions
+Partition key: /candidate_id
+5.2 Document schema
+{
+  "id": "session_uuid_v4",                       // Cosmos document ID
+  "candidate_id": "cand_abc123",                 // from resume scanner
+  "candidate_name": "Priya Nair",
+  "candidate_email": "priya@example.com",
+  "job_description_id": "jd_xyz",                // links back to the JD
+  "status": "scheduled",                         // scheduled | in_progress | completed | failed
+  "scheduled_time": "2026-06-15T10:00:00Z",
+  "created_at": "2026-06-06T08:00:00Z",
+  "completed_at": null,
+  "questions": [
+    "Tell me about yourself.",
+    "Describe a challenging project you worked on.",
+    "Why are you interested in this role?"
+  ],
+  "answers": [
+    {
+      "question_index": 0,
+      "question_text": "Tell me about yourself.",
+      "transcript": "Sure, I am a software engineer with 5 years...",
+      "score": 8,
+      "score_reasoning": "Clear and structured. Good mention of relevant experience."
+    },
+    { "question_index": 1, "transcript": "...", "score": 7, "score_reasoning": "..." },
+    { "question_index": 2, "transcript": "...", "score": 9, "score_reasoning": "..." }
+  ],
+  "final_score": 8.0,
+  "recording_blob_url": "https://yourstorage.blob.core.windows.net/interview-recordings/session_uuid.webm",
+  "recording_sas_url": "https://...?sv=...&sig=..."   // time-limited read URL for recruiter
+}
+
+6. FastAPI Backend — New Routes
+6.1 Router file
+Create a new file: backend/app/routers/interview.py. Register it in main.py with: app.include_router(interview.router, prefix="/interview", tags=["interview"])
+6.2 Route specifications
+POST /interview/schedule
+Triggered by recruiter clicking Confirm in the Schedule Interview modal.
+Request body: candidate_id, candidate_name, candidate_email, scheduled_time (ISO 8601), job_description_id
+Actions: (1) Generate a UUID session ID. (2) Create Cosmos DB document with status=scheduled. (3) Send email to candidate via ACS with static Teams link, scheduled time, and session ID embedded in a URL param. (4) Return session ID and status to frontend.
+Response: { session_id, status: "scheduled", teams_link }
+GET /interview/session/{session_id}
+Called by the Teams side panel on load to get session data and questions.
+Actions: Fetch Cosmos DB document by session_id. Update status to in_progress. Return questions array and candidate name.
+Response: { candidate_name, questions: [str, str, str], session_id }
+GET /interview/speech-token
+Called by Teams panel to get a short-lived Azure Speech token. This keeps the Speech key off the client.
+Actions: Exchange AZURE_SPEECH_KEY for a 10-minute auth token via Azure Speech REST API. Return token and region.
+Response: { token, region }
+GET /interview/upload-url/{session_id}
+Called by Teams panel just before uploading the recording blob.
+Actions: Generate a time-limited SAS URL (write permission, 30-minute expiry) for the blob: interview-recordings/{session_id}.webm using the Azure Blob Storage SDK.
+Response: { sas_url, blob_name }
+POST /interview/answers
+Called by Teams panel after all 3 questions are answered.
+Request body: session_id, answers: [{ question_index, question_text, transcript }], recording_blob_name
+Actions: (1) Save transcripts to Cosmos DB. (2) Trigger evaluation_service.evaluate_answers() asynchronously. (3) Return 202 Accepted immediately so panel does not wait.
+POST /interview/evaluate (internal — called by answers handler)
+This is not a public endpoint. It is an internal async function called after answers are received.
+Actions: (1) For each answer, call Azure OpenAI GPT-4 with a scoring prompt. (2) Receive score (0-10) and reasoning per question. (3) Compute final_score as mean of 3 scores. (4) Update Cosmos DB document with all scores and status=completed.
+GET /interview/results/{session_id}
+Called by dashboard polling to check if results are ready.
+Response: { status, final_score, answers: [{ score, score_reasoning, transcript }], recording_sas_url }
+GET /interview/candidate/{candidate_id}
+Called by dashboard on load to check if a candidate already has a completed interview session.
+Response: Latest session document for this candidate, or null if none.
+
+7. Azure Communication Services — Email
+7.1 Setup (one-time)
+In Azure Portal, create an Azure Communication Services resource
+Under Email, create an Email Communication Service resource
+Configure a sender domain (either a custom domain you own, or use the Azure-managed subdomain)
+Verify the domain (add DNS TXT records if using custom domain)
+Link the Email Communication resource to the ACS resource
+Copy the ACS connection string to the backend .env
+7.2 Email template sent to candidate
+The email must include the following:
+Subject: Interview Invitation — [Job Title] at [Company Name]
+Candidate name (personalised greeting)
+Scheduled date and time (in a human-readable format, include timezone)
+Clear instructions: Join the Teams meeting at the scheduled time, ensure your camera and microphone work, be in a quiet environment
+The static Teams meeting link as a prominent button/link
+A note that the interview is conducted by an AI system
+The session_id embedded as a URL parameter in the Teams link for panel identification, e.g.: https://teams.microsoft.com/l/meetup-join/...?context={session_id: "abc123"}
+Important: The session_id must be appended to the Teams link so that when the candidate clicks the link and the panel loads, the panel can extract the session_id from the URL context and call GET /interview/session/{session_id} to load the right interview data.
+7.3 Python SDK usage
+from azure.communication.email import EmailClient
+
+client = EmailClient.from_connection_string(ACS_CONNECTION_STRING)
+
+message = {
+  "senderAddress": ACS_SENDER_EMAIL,
+  "recipients": {"to": [{"address": candidate_email, "displayName": candidate_name}]},
+  "content": {
+    "subject": f"Interview Invitation — {job_title}",
+    "html": render_email_template(candidate_name, scheduled_time, teams_link, session_id)
+  }
+}
+poller = client.begin_send(message)
+result = poller.result()
+
+8. Teams Side Panel App
+8.1 What a Teams side panel is
+A Teams side panel is a Teams Tab app that loads inside a meeting. It is a React web app registered in the Teams Developer Portal and deployed to Azure Static Web Apps. When a meeting starts and the app is added, the panel opens in a sidebar within the meeting UI. The app communicates with the Teams environment via the @microsoft/teams-js SDK and with your FastAPI backend via standard fetch calls.
+8.2 Package dependencies
+npm install @microsoft/teams-js
+npm install microsoft-cognitiveservices-speech-sdk
+npm install axios
+# (React is already a dependency)
+8.3 Teams app manifest (manifest.json)
+This file tells Teams how to display your app. Place it in teams-panel/public/manifest/
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "<generate-a-uuid-here>",
+  "packageName": "com.yourcompany.smartinterviewer",
+  "name": { "short": "Smart Interview", "full": "Smart Interviewer Panel" },
+  "description": { "short": "AI Interview Panel", "full": "Conducts structured AI interviews" },
+  "icons": { "color": "color.png", "outline": "outline.png" },
+  "accentColor": "#1F4E79",
+  "configurableTabs": [],
+  "staticTabs": [],
+  "meetingExtensionDefinition": {
+    "scenes": [],
+    "supportsStreaming": false
+  },
+  "configurableTabs": [
+    {
+      "configurationUrl": "https://your-static-webapp.azurestaticapps.net/config",
+      "canUpdateConfiguration": false,
+      "scopes": ["groupChat"],
+      "context": ["meetingSidePanel"]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["your-static-webapp.azurestaticapps.net", "your-backend.azurewebsites.net"]
+}
+8.4 App.jsx — stage router
+The root component manages which stage is shown. Stages are: setup, question (with current question index), and goodbye.
+import { useState, useEffect } from 'react';
+import { app } from '@microsoft/teams-js';
+import SetupStage from './stages/SetupStage';
+import QuestionStage from './stages/QuestionStage';
+import GoodbyeStage from './stages/GoodbyeStage';
+import { useInterviewSession } from './hooks/useInterviewSession';
+import { useMediaRecorder } from './hooks/useMediaRecorder';
+
+export default function App() {
+  const [stage, setStage] = useState('loading');
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const { session, loadSession } = useInterviewSession();
+  const { startRecording, stopRecordingAndUpload } = useMediaRecorder();
+
+  useEffect(() => {
+    app.initialize().then(() => {
+      const context = app.getContext();
+      const sessionId = extractSessionIdFromContext(context);
+      loadSession(sessionId).then(() => setStage('setup'));
+    });
+  }, []);
+
+  function handleSetupDone() {
+    startRecording();   // begin MediaRecorder capture
+    setStage('question');
+  }
+
+  function handleAnswerDone(transcript) {
+    session.recordAnswer(questionIndex, transcript);
+    if (questionIndex < 2) { setQuestionIndex(i => i + 1); }
+    else { handleAllDone(); }
+  }
+
+  async function handleAllDone() {
+    setStage('goodbye');
+    await stopRecordingAndUpload(session.id);
+    await session.submitAnswers();
+  }
+
+  if (stage === 'loading') return <div>Loading your interview...</div>;
+  if (stage === 'setup') return <SetupStage onDone={handleSetupDone} candidateName={session.candidateName} />;
+  if (stage === 'question') return <QuestionStage question={session.questions[questionIndex]} index={questionIndex} onDone={handleAnswerDone} />;
+  if (stage === 'goodbye') return <GoodbyeStage />;
+}
+8.5 SetupStage.jsx
+Displays setup instructions. Has a Done button that enables once the user acknowledges all three steps. No camera/mic/screen control needed from code — Teams handles those natively. The panel only needs to instruct the user and confirm.
+Show three checklist items: Enable camera, Unmute microphone, Share your entire screen
+Each item has a checkbox the candidate manually ticks
+Done button enables only when all three are checked
+Done button calls onDone() prop
+8.6 QuestionStage.jsx
+Displays one question at a time. Has a mic button for recording the answer.
+Props: question (string), index (0/1/2), onDone(transcript)
+Display question text in large, readable font
+Show ProgressDots component (e.g., Q1 filled, Q2 empty, Q3 empty)
+Mic button: click to start recording via useAzureSpeech hook, click again (or Done button) to stop
+While recording: show animated pulsing mic icon and live transcript text appearing below
+Done button: ends recognition, calls onDone(transcript)
+Disable Done button until at least one word of transcript has been captured
+8.7 GoodbyeStage.jsx
+A simple, polished screen shown after all answers are submitted.
+Heading: Thank You!
+Body: Your interview is complete. Our team will review your responses and be in touch shortly.
+No buttons — the panel simply stays on this screen
+Optionally auto-close the panel after 30 seconds using Teams JS SDK app.closeApp()
+8.8 useAzureSpeech.js hook
+Wraps the Azure Speech SDK for real-time speech-to-text of a single answer.
+import * as SpeechSDK from 'microsoft-cognitiveservices-speech-sdk';
+
+// 1. On mount, call GET /interview/speech-token to get a short-lived token
+// 2. Create SpeechSDK.SpeechConfig from the token and region
+// 3. startRecognition(): create AudioConfig.fromDefaultMicrophoneInput()
+//    create SpeechRecognizer, call recognizeOnceAsync or continuous recognition
+// 4. On recognized event: append text to transcript state
+// 5. stopRecognition(): stop recognizer, return final transcript string
+
+export function useAzureSpeech() {
+  // returns: { startRecognition, stopRecognition, transcript, isRecording }
+}
+8.9 useMediaRecorder.js hook
+Manages the full-session recording of mic + screen using the browser MediaRecorder API.
+export function useMediaRecorder() {
+  // startRecording():
+  //   1. navigator.mediaDevices.getDisplayMedia({ video: true }) — screen
+  //   2. navigator.mediaDevices.getUserMedia({ audio: true }) — mic
+  //   3. Merge tracks using MediaStream constructor
+  //   4. Create MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp8,opus' })
+  //   5. Collect chunks in ondataavailable
+
+  // stopRecordingAndUpload(sessionId):
+  //   1. Stop MediaRecorder and all tracks
+  //   2. Create Blob from chunks with type video/webm
+  //   3. Call GET /interview/upload-url/{sessionId} to get SAS URL
+  //   4. PUT the blob directly to the SAS URL (Azure Blob REST API accepts this)
+  //   5. Return blob name to caller
+}
+8.10 sessionApi.js
+All HTTP calls from the panel to FastAPI backend.
+const BASE = process.env.REACT_APP_API_BASE_URL;
+
+export const getSession = (id) => fetch(`${BASE}/interview/session/${id}`).then(r => r.json());
+export const getSpeechToken = () => fetch(`${BASE}/interview/speech-token`).then(r => r.json());
+export const getUploadUrl = (id) => fetch(`${BASE}/interview/upload-url/${id}`).then(r => r.json());
+export const submitAnswers = (payload) => fetch(`${BASE}/interview/answers`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload)
+}).then(r => r.json());
+
+9. Azure OpenAI — Answer Evaluation
+9.1 Evaluation prompt design
+For each answer, send the following prompt to GPT-4 via the existing Azure OpenAI endpoint:
+system: |
+  You are an expert interviewer and talent evaluator.
+  Your task is to evaluate a candidate's spoken answer to an interview question.
+  Evaluate on three criteria: Relevance (does it answer the question?),
+  Clarity (is it well-structured and easy to understand?),
+  Depth (does it demonstrate genuine knowledge or experience?).
+  Return ONLY a JSON object with no other text:
+  { "score": <integer 0-10>, "reasoning": "<one concise sentence>" }
+
+user: |
+  Interview Question: {question_text}
+  Candidate Answer: {transcript}
+9.2 Final score computation
+After all three answers are evaluated, compute:
+final_score = round((score_q1 + score_q2 + score_q3) / 3, 1)
+9.3 Evaluation service (evaluation_service.py)
+async def evaluate_answers(session_id: str, answers: list[AnswerInput]):
+  scored = []
+  for answer in answers:
+    response = await openai_client.chat.completions.create(
+      model=AZURE_OPENAI_DEPLOYMENT,
+      messages=[{system_prompt}, {user_prompt(answer)}],
+      temperature=0.2
+    )
+    result = json.loads(response.choices[0].message.content)
+    scored.append({ ...answer, "score": result['score'], "score_reasoning": result['reasoning'] })
+
+  final_score = round(sum(a['score'] for a in scored) / len(scored), 1)
+  await cosmos_client.update_session(session_id, {
+    'answers': scored,
+    'final_score': final_score,
+    'status': 'completed'
+  })
+
+10. Dashboard Updates (React Frontend)
+10.1 Changes to CandidateTable.jsx
+Add a new column: Interview
+For each candidate row, if no interview session exists: show "Start Interview" button
+If session status is scheduled: show a Scheduled badge with the date/time
+If status is in_progress: show an In Progress badge with a loading spinner
+If status is completed: show the final_score (e.g. 8.0 / 10) and a View Details button
+10.2 InterviewModal.jsx
+Opens when recruiter clicks Start Interview. Contains:
+Candidate name (pre-filled, read-only)
+Date picker for interview date
+Time picker for interview time
+Confirm and Cancel buttons
+On Confirm: calls POST /interview/schedule, closes modal, shows Scheduled badge in the row
+10.3 InterviewResults.jsx
+An expandable row or side drawer shown when recruiter clicks View Details. Displays:
+Per-question breakdown: question text, transcript, score (X/10), score reasoning
+Final composite score prominently
+Watch Recording button (opens recording_sas_url in new tab)
+Download Transcript button (downloads all transcripts as a text file)
+10.4 useInterviewStatus.js hook
+Polls GET /interview/results/{session_id} every 5 seconds for sessions in scheduled or in_progress state. Stops polling when status becomes completed or failed. Updates candidate row state in the parent component.
+export function useInterviewStatus(sessionId, initialStatus) {
+  const [status, setStatus] = useState(initialStatus);
+  const [results, setResults] = useState(null);
+
+  useEffect(() => {
+    if (!sessionId || status === 'completed') return;
+    const interval = setInterval(async () => {
+      const data = await getResults(sessionId);
+      setStatus(data.status);
+      if (data.status === 'completed') {
+        setResults(data);
+        clearInterval(interval);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [sessionId, status]);
+
+  return { status, results };
+}
+10.5 interviewApi.js
+const BASE = process.env.REACT_APP_API_BASE_URL;
+
+export const scheduleInterview = (payload) =>
+  fetch(`${BASE}/interview/schedule`, { method:'POST', ... });
+
+export const getCandidateSession = (candidateId) =>
+  fetch(`${BASE}/interview/candidate/${candidateId}`).then(r => r.json());
+
+export const getResults = (sessionId) =>
+  fetch(`${BASE}/interview/results/${sessionId}`).then(r => r.json());
+
+11. Deployment
+11.1 FastAPI backend
+Deploy to Azure App Service (Linux, Python 3.11)
+Set all environment variables in App Service > Configuration > Application Settings
+CORS: allow the Teams panel domain and the React dashboard domain
+Enable HTTPS. The Teams panel requires HTTPS to load inside Teams.
+11.2 Teams side panel (React app)
+Deploy to Azure Static Web Apps (free tier is sufficient)
+Set environment variables in Static Web App configuration
+The deployment URL must be in the validDomains array in manifest.json
+11.3 Registering the Teams app
+Open Teams Developer Portal: https://dev.teams.microsoft.com
+Go to Apps > Import app
+Zip the manifest/ folder contents (manifest.json + both icons) and upload
+Configure the tab URL to point to your Azure Static Web App URL
+Under Publish, choose Publish to your org (requires Teams admin approval)
+Once approved, the app appears in the Teams meeting side panel when the recruiter or candidate opens the meeting
+The static Teams meeting link must be created from the same tenant. Create a Teams meeting manually (any future recurring meeting works), copy the join link, and set it as TEAMS_STATIC_MEETING_URL in the backend .env. Every candidate will join this same meeting room, one at a time.
+11.4 Azure resources checklist
+Resource
+Purpose
+Tier
+Azure Communication Services
+Send candidate emails
+Free (first 100 emails/month free)
+Azure Speech Service
+Speech-to-text for answers
+Standard S0 (pay per use)
+Azure Cosmos DB
+Interview session storage
+Serverless (pay per RU)
+Azure Blob Storage
+Recording storage
+LRS Hot (existing, add new container)
+Azure Static Web Apps
+Host Teams panel React app
+Free tier
+Azure App Service
+Host FastAPI backend
+B1 (existing or new)
+
+12. Build Phases & Task Checklist
+Phase 1 — Azure infrastructure (Days 1–2)
+Provision Azure Communication Services resource in Azure Portal
+Set up and verify email sender domain in ACS
+Provision Azure Speech Service resource, copy key and region
+Provision Azure Cosmos DB (Serverless), create database and container
+Run infrastructure/cosmos_setup.py to create containers with correct partition key
+Add new container interview-recordings to existing Azure Blob Storage account
+Collect all keys and connection strings, add to backend .env
+Phase 2 — FastAPI new routes (Days 3–8)
+Create backend/app/models/interview_models.py with all Pydantic schemas
+Create backend/app/db/cosmos_client.py with create/read/update operations
+Create backend/app/services/acs_email_service.py with send_interview_email()
+Create backend/app/services/speech_service.py with get_speech_token()
+Create backend/app/services/evaluation_service.py with evaluate_answers()
+Create backend/app/services/blob_service.py EXTEND with generate_sas_url()
+Create backend/app/routers/interview.py with all 7 routes
+Register interview router in main.py
+Test all routes with Postman or HTTPie before building panel
+Phase 3 — Teams side panel app (Days 9–18)
+Scaffold new React project in teams-panel/ using Create React App or Vite
+Install @microsoft/teams-js and microsoft-cognitiveservices-speech-sdk
+Create teams-panel/public/manifest/ with manifest.json and icons
+Build useTeamsContext.js hook — initialize Teams SDK, extract session ID from context
+Build sessionApi.js — all API call functions
+Build useInterviewSession.js — session loading, question management, answer storage
+Build useAzureSpeech.js — token fetch, recognizer setup, start/stop recognition
+Build useMediaRecorder.js — screen + mic capture, blob assembly, SAS upload
+Build SetupStage.jsx — checklist with Done button
+Build MicButton.jsx and ProgressDots.jsx components
+Build QuestionStage.jsx — question display, mic button, live transcript, Done button
+Build GoodbyeStage.jsx — thank you screen with auto-close
+Build App.jsx — stage router connecting all stages
+Test locally using Teams Toolkit VS Code extension or ngrok + Developer Portal
+Phase 4 — Dashboard updates (Days 19–22)
+Add Interview column to CandidateTable.jsx
+Build InterviewModal.jsx with date/time picker and schedule API call
+Build useInterviewStatus.js polling hook
+Integrate status badges (Scheduled, In Progress, Completed) into candidate rows
+Build InterviewResults.jsx with per-question breakdown, scores, and recording link
+Add interviewApi.js with all dashboard-side API calls
+On dashboard load, call GET /interview/candidate/{candidate_id} for each candidate to restore existing session state
+Phase 5 — Integration testing & deployment (Days 23–26)
+End-to-end test: schedule interview → receive email → join Teams → complete all stages → verify scores in dashboard
+Test recording upload to Blob and SAS URL playback
+Test dashboard auto-update polling
+Deploy FastAPI to Azure App Service
+Deploy Teams panel to Azure Static Web Apps
+Register Teams app in Developer Portal, submit for org approval
+Test in real Teams environment with actual tenant
+
+13. Important Notes for the Coding Assistant
+13.1 Do not change existing code unless explicitly listed
+The resume scanner's existing parsing logic, OpenAI analysis, Azure Search integration, and candidate scoring must not be modified. All new code is additive. The only existing files that need modification are CandidateTable.jsx (add Interview column) and main.py (register new router).
+13.2 Session ID in Teams context
+The session_id must travel from the backend email → the Teams meeting link as a URL parameter → the Teams panel context. In the Teams JS SDK, use app.getContext() to get the meeting context. The session_id should be appended to the Teams link as a custom parameter when the email is sent. In the panel, parse it from the subEntityId or meetingId context fields. Test this flow carefully as Teams context parameter passing can be tricky.
+13.3 MediaRecorder browser support
+MediaRecorder with video/webm is supported in Chromium-based browsers (Chrome, Edge). Teams desktop client uses a Chromium-based webview, so this works. Safari does not support video/webm — use a fallback to audio/webm if video fails. Test inside the actual Teams client, not just a regular browser, as Teams imposes additional permissions.
+13.4 Speech SDK and microphone in Teams panel
+The Azure Speech SDK's fromDefaultMicrophoneInput() will use the microphone that Teams is already using. The candidate must have already unmuted in Teams before this works. The SetupStage instructions to unmute first are therefore critical. If recognition returns empty results, the most common cause is the mic being muted at the Teams level.
+13.5 CORS configuration
+FastAPI must allow CORS from two origins: the React dashboard URL and the Teams panel Static Web App URL. During local development, also allow localhost:3000 and localhost:3001. Use the fastapi.middleware.cors CORSMiddleware.
+13.6 Error handling
+Every stage in the Teams panel must handle network failures gracefully. If GET /interview/session fails, show a friendly error and a retry button. If speech recognition fails, allow the candidate to re-record. If the upload fails, retry automatically up to 3 times before showing an error. The candidate must never be left on a blank screen.
+13.7 Cosmos DB indexing
+Add a composite index on (candidate_id, status) in Cosmos DB for efficient queries on GET /interview/candidate/{candidate_id}. Add a single-field index on status for admin queries. Configure this in the Cosmos DB portal under the container's Indexing Policy, or in cosmos_setup.py.
+
+End of specification. This document contains everything needed to build the Smart Interviewer. Start with Phase 1 (Azure infrastructure), then Phase 2 (FastAPI routes), and validate those before building the Teams panel in Phase 3.

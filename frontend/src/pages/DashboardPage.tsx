@@ -1,13 +1,13 @@
 /**
  * Dashboard page — candidate rankings, charts, and detailed views.
  */
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Paper, Chip, Avatar, IconButton, TextField,
   Button, useTheme, Grid, Card, CardContent, Tooltip, Dialog,
   DialogTitle, DialogContent, DialogActions, Divider, Tabs, Tab,
-  InputAdornment, Snackbar, Alert,
+  InputAdornment, Snackbar, Alert, CircularProgress,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import {
@@ -21,6 +21,7 @@ import {
   TrendingUp as TrendIcon,
   Assessment as AssessIcon,
   Science as EvalIcon,
+  VideoCall as InterviewIcon,
 } from '@mui/icons-material';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -29,8 +30,11 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { useEvalContext } from '../App';
-import type { CandidateResult, SkillScore } from '../types';
+import type { CandidateResult, SkillScore, InterviewSession, InterviewStatusType } from '../types';
 import api from '../services/api';
+import interviewApi from '../services/interviewApi';
+import InterviewModal from '../components/InterviewModal';
+import InterviewResults from '../components/InterviewResults';
 
 const CHART_COLORS = ['#667eea', '#14b8a6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -97,6 +101,92 @@ export default function DashboardPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailTab, setDetailTab] = useState(0);
   const [toast, setToast] = useState({ open: false, message: '' });
+
+  // ─── Smart Interviewer State ───
+  const [interviewSessions, setInterviewSessions] = useState<Record<string, InterviewSession>>({});
+  const [interviewModalOpen, setInterviewModalOpen] = useState(false);
+  const [interviewModalCandidate, setInterviewModalCandidate] = useState<CandidateResult | null>(null);
+  const [interviewResultsOpen, setInterviewResultsOpen] = useState(false);
+  const [selectedInterviewSession, setSelectedInterviewSession] = useState<InterviewSession | null>(null);
+  const [pollingSessionIds, setPollingSessionIds] = useState<Set<string>>(new Set());
+
+  // Load interview sessions for all candidates on mount
+  useEffect(() => {
+    if (!currentEvaluation?.candidates?.length) return;
+
+    const loadSessions = async () => {
+      const sessions: Record<string, InterviewSession> = {};
+      for (const candidate of currentEvaluation.candidates) {
+        try {
+          const response = await interviewApi.getCandidateSession(candidate.id, currentEvaluation.evaluation_id);
+          if (response.data.session) {
+            sessions[candidate.id] = response.data.session;
+            // Start polling for non-completed sessions
+            const s = response.data.session;
+            if (s.status === 'scheduled' || s.status === 'in_progress') {
+              setPollingSessionIds((prev) => new Set([...prev, s.session_id]));
+            }
+          }
+        } catch {
+          // No session for this candidate
+        }
+      }
+      setInterviewSessions(sessions);
+    };
+
+    loadSessions();
+  }, [currentEvaluation]);
+
+  // Poll for active sessions
+  useEffect(() => {
+    if (pollingSessionIds.size === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const sessionId of pollingSessionIds) {
+        try {
+          const response = await interviewApi.getResults(sessionId, currentEvaluation?.evaluation_id);
+          const data = response.data;
+          if (data.status === 'completed' || data.status === 'failed') {
+            setInterviewSessions((prev) => ({
+              ...prev,
+              [data.candidate_id]: data,
+            }));
+            setPollingSessionIds((prev) => {
+              const next = new Set(prev);
+              next.delete(sessionId);
+              return next;
+            });
+            if (data.status === 'completed') {
+              setToast({ open: true, message: `Interview completed for ${data.candidate_name}! Score: ${data.final_score}/10` });
+            }
+          }
+        } catch {
+          // Will retry next poll
+        }
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [pollingSessionIds]);
+
+  const handleInterviewScheduled = (candidateId: string, sessionId: string, scheduledTime: string) => {
+    setInterviewSessions((prev) => ({
+      ...prev,
+      [candidateId]: {
+        session_id: sessionId,
+        candidate_id: candidateId,
+        candidate_name: interviewModalCandidate?.candidate_name || '',
+        status: 'scheduled' as InterviewStatusType,
+        scheduled_time: scheduledTime,
+        final_score: null,
+        answers: [],
+        recording_sas_url: '',
+        completed_at: null,
+      },
+    }));
+    setPollingSessionIds((prev) => new Set([...prev, sessionId]));
+    setToast({ open: true, message: 'Interview scheduled successfully!' });
+  };
 
   // No evaluation yet
   if (!currentEvaluation || currentEvaluation.candidates.length === 0) {
@@ -238,6 +328,88 @@ export default function DashboardPage() {
           variant="outlined"
         />
       ),
+    },
+    {
+      field: 'interview',
+      headerName: 'Interview',
+      width: 170,
+      sortable: false,
+      renderCell: (params: GridRenderCellParams) => {
+        const candidateId = params.row.id;
+        const session = interviewSessions[candidateId];
+
+        if (!session || session.status === 'none') {
+          return (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<InterviewIcon />}
+              onClick={() => {
+                setInterviewModalCandidate(params.row as CandidateResult);
+                setInterviewModalOpen(true);
+              }}
+              sx={{ textTransform: 'none', fontWeight: 600, fontSize: 12 }}
+            >
+              Start Interview
+            </Button>
+          );
+        }
+
+        if (session.status === 'scheduled') {
+          const dt = new Date(session.scheduled_time);
+          return (
+            <Chip
+              label={`Scheduled ${dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+              size="small"
+              color="info"
+              variant="outlined"
+              sx={{ fontWeight: 600 }}
+            />
+          );
+        }
+
+        if (session.status === 'in_progress') {
+          return (
+            <Chip
+              label="In Progress"
+              size="small"
+              color="warning"
+              variant="outlined"
+              icon={<CircularProgress size={12} color="inherit" />}
+              sx={{ fontWeight: 600 }}
+            />
+          );
+        }
+
+        if (session.status === 'completed') {
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Chip
+                label={`${session.final_score}/10`}
+                size="small"
+                sx={{
+                  fontWeight: 700,
+                  bgcolor: `${session.final_score && session.final_score >= 7 ? '#22c55e' : session.final_score && session.final_score >= 5 ? '#f59e0b' : '#ef4444'}20`,
+                  color: session.final_score && session.final_score >= 7 ? '#22c55e' : session.final_score && session.final_score >= 5 ? '#f59e0b' : '#ef4444',
+                }}
+              />
+              <Tooltip title="View Results">
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setSelectedInterviewSession(session);
+                    setInterviewResultsOpen(true);
+                  }}
+                >
+                  <ViewIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          );
+        }
+
+        return <Chip label="Failed" size="small" color="error" variant="outlined" />;
+      },
     },
     {
       field: 'actions',
@@ -535,6 +707,36 @@ export default function DashboardPage() {
           </>
         )}
       </Dialog>
+
+      {/* ─── Interview Modal ─── */}
+      {interviewModalCandidate && (
+        <InterviewModal
+          open={interviewModalOpen}
+          onClose={() => {
+            setInterviewModalOpen(false);
+            setInterviewModalCandidate(null);
+          }}
+          candidateId={interviewModalCandidate.id}
+          candidateName={interviewModalCandidate.candidate_name}
+          candidateEmail={interviewModalCandidate.email}
+          evaluationId={currentEvaluation?.evaluation_id || ''}
+          onScheduled={(sessionId, scheduledTime) => {
+            handleInterviewScheduled(interviewModalCandidate.id, sessionId, scheduledTime);
+          }}
+        />
+      )}
+
+      {/* ─── Interview Results ─── */}
+      {selectedInterviewSession && (
+        <InterviewResults
+          open={interviewResultsOpen}
+          onClose={() => {
+            setInterviewResultsOpen(false);
+            setSelectedInterviewSession(null);
+          }}
+          session={selectedInterviewSession}
+        />
+      )}
 
       <Snackbar open={toast.open} autoHideDuration={3000} onClose={() => setToast({ ...toast, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>

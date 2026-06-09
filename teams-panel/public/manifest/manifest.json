@@ -1,0 +1,48 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "e67b2d5a-cab8-43d9-952b-7ab8f0cd6921",
+  "packageName": "com.bray.candidate.evaluator.interviewer",
+  "developer": {
+    "name": "Bray Candidate Evaluator",
+    "websiteUrl": "https://www.example.com",
+    "privacyUrl": "https://www.example.com/privacy",
+    "termsOfUseUrl": "https://www.example.com/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "Smart Interviewer",
+    "full": "Smart Interviewer Side Panel"
+  },
+  "description": {
+    "short": "AI-powered candidate interview side panel for Teams meetings.",
+    "full": "Guides candidates through hardware checklists, asks pre-defined interview questions, transcribes answers in real-time, and records screen + audio for recruiter evaluation."
+  },
+  "accentColor": "#1F4E79",
+  "configurableTabs": [
+    {
+      "configurationUrl": "https://<your_ngrok_url>/",
+      "canUpdateConfiguration": true,
+      "scopes": [
+        "groupchat"
+      ],
+      "context": [
+        "meetingSidePanel"
+      ]
+    }
+  ],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
+  "validDomains": [
+    "<your_ngrok_url>",
+    "localhost",
+    "*.blob.core.windows.net",
+    "*.cognitive.microsoft.com"
+  ]
+}

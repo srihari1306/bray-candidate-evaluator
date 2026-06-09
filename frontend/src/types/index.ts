@@ -111,3 +111,32 @@ export interface HealthResponse {
   version: string;
   services: Record<string, string>;
 }
+
+// ─── Smart Interviewer Types ────────────────────────────────────────────────
+
+export type InterviewStatusType =
+  | 'none'
+  | 'scheduled'
+  | 'in_progress'
+  | 'completed'
+  | 'failed';
+
+export interface InterviewAnswer {
+  question_index: number;
+  question_text: string;
+  transcript: string;
+  score: number;
+  score_reasoning: string;
+}
+
+export interface InterviewSession {
+  session_id: string;
+  candidate_id: string;
+  candidate_name: string;
+  status: InterviewStatusType;
+  scheduled_time: string;
+  final_score: number | null;
+  answers: InterviewAnswer[];
+  recording_sas_url: string;
+  completed_at: string | null;
+}

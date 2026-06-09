@@ -12,14 +12,16 @@ import {
   Visibility as ViewIcon,
   EmojiEvents as TrophyIcon,
   Science as EvalIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
 import { useEvalContext } from '../App';
+import { api } from '../services/api';
 
 export default function HistoryPage() {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { evaluationHistory, setCurrentEvaluation } = useEvalContext();
+  const { evaluationHistory, setCurrentEvaluation, deleteEvaluation } = useEvalContext();
 
   if (evaluationHistory.length === 0) {
     return (
@@ -108,11 +110,39 @@ export default function HistoryPage() {
                         </Box>
                       )}
                     </Box>
-                    <Tooltip title="View Results">
-                      <IconButton color="primary">
-                        <ViewIcon />
-                      </IconButton>
-                    </Tooltip>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Tooltip title="View Results">
+                        <IconButton
+                          color="primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentEvaluation(evalData);
+                            navigate('/');
+                          }}
+                        >
+                          <ViewIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete Evaluation">
+                        <IconButton
+                          color="error"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (window.confirm("Are you sure you want to delete this evaluation history? This will also delete all associated candidate reviews.")) {
+                              try {
+                                await api.deleteEvaluation(evalData.evaluation_id);
+                                deleteEvaluation(evalData.evaluation_id);
+                              } catch (err) {
+                                console.error("Failed to delete evaluation:", err);
+                                alert("Failed to delete evaluation history item.");
+                              }
+                            }
+                          }}
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </Box>
                 </CardContent>
               </Card>

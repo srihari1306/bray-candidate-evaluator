@@ -7,7 +7,6 @@ import type {
   EvaluationResponse,
   CandidateListResponse,
   CandidateResult,
-  EvaluationHistoryItem,
   HealthResponse,
 } from '../types';
 
@@ -16,7 +15,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 120000, // 2 min for evaluation
+  timeout: 300000, // 5 min for evaluation
 });
 
 // Request interceptor for auth token
@@ -65,7 +64,10 @@ export const api = {
 
   // History
   getHistory: () =>
-    apiClient.get<EvaluationHistoryItem[]>('/api/history'),
+    apiClient.get<EvaluationResponse[]>('/api/history'),
+
+  deleteEvaluation: (evaluationId: string) =>
+    apiClient.delete<{ message: string; evaluation_id: string }>(`/api/history/${evaluationId}`),
 
   // Reindex
   reindex: () => apiClient.post('/api/reindex'),

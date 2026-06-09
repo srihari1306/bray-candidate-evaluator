@@ -34,12 +34,11 @@ async def evaluate_candidates(
     # For simplicity, run synchronously (can be moved to background task for large batches)
     result = await engine.evaluate(request)
 
-    # Store in app state for later retrieval
-    req.app.state.evaluations[result.evaluation_id] = result
-
-    # Also store individual candidates
-    for candidate in result.candidates:
-        req.app.state.candidates[candidate.id] = candidate
+    # Store in JSON database
+    from fastapi.encoders import jsonable_encoder
+    from app.db.evaluation_db import get_evaluation_db
+    db = get_evaluation_db()
+    await db.save_evaluation(result.evaluation_id, jsonable_encoder(result))
 
     return result
 
@@ -47,17 +46,21 @@ async def evaluate_candidates(
 @router.get("/evaluate/{evaluation_id}/status", response_model=EvaluationStatusResponse)
 async def get_evaluation_status(evaluation_id: str, req: Request):
     """Check the status of an ongoing evaluation."""
-    evaluations = req.app.state.evaluations
+    from app.db.evaluation_db import get_evaluation_db
+    db = get_evaluation_db()
+    eval_data = db.get_evaluation(evaluation_id)
 
-    if evaluation_id not in evaluations:
+    if not eval_data:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
-    eval_data = evaluations[evaluation_id]
+    status = eval_data.get("status")
+    total_resumes = eval_data.get("total_resumes_processed", 0)
+
     return EvaluationStatusResponse(
         evaluation_id=evaluation_id,
-        status=eval_data.status,
-        progress_percent=100 if eval_data.status == EvaluationStatus.COMPLETED else 0,
-        message="Evaluation complete" if eval_data.status == EvaluationStatus.COMPLETED else "Processing...",
-        total_resumes=eval_data.total_resumes_processed,
-        processed_resumes=eval_data.total_resumes_processed,
+        status=status,
+        progress_percent=100 if status == EvaluationStatus.COMPLETED else 0,
+        message="Evaluation complete" if status == EvaluationStatus.COMPLETED else "Processing...",
+        total_resumes=total_resumes,
+        processed_resumes=total_resumes,
     )

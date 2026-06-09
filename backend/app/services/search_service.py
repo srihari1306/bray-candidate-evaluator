@@ -93,8 +93,17 @@ class SearchService:
             )
         return self._search_client
 
+    def _is_placeholder(self) -> bool:
+        endpoint = self.settings.AZURE_SEARCH_ENDPOINT
+        key = self.settings.AZURE_SEARCH_API_KEY
+        return not endpoint or "your-" in endpoint.lower() or not key or "your-" in key.lower()
+
     async def create_or_update_index(self):
         """Create or update the search index with vector and semantic configuration."""
+        if self._is_placeholder():
+            logger.warning("Azure AI Search not configured or placeholder — skipping index creation")
+            return
+
         from azure.search.documents.indexes.models import (
             SearchIndex,
             SearchField,
@@ -152,22 +161,32 @@ class SearchService:
             semantic_search=SemanticSearch(configurations=[semantic_config]),
         )
 
-        client = self._get_index_client()
-        client.create_or_update_index(index)
-        logger.info(f"Search index '{self.settings.AZURE_SEARCH_INDEX_NAME}' created/updated")
+        try:
+            client = self._get_index_client()
+            client.create_or_update_index(index)
+            logger.info(f"Search index '{self.settings.AZURE_SEARCH_INDEX_NAME}' created/updated")
+        except Exception as e:
+            logger.warning(f"Failed to create/update search index: {e}. Skipping Azure AI Search index operation.")
 
     async def index_documents(self, documents: list[SearchDocument]):
         """Upload documents to the search index."""
+        if self._is_placeholder():
+            logger.warning(f"Azure AI Search not configured — skipping indexing of {len(documents)} documents")
+            return
+
         client = self._get_search_client()
         batch = [doc.to_dict() for doc in documents]
 
         # Upload in batches of 1000
         batch_size = 1000
-        for i in range(0, len(batch), batch_size):
-            chunk = batch[i : i + batch_size]
-            result = client.upload_documents(documents=chunk)
-            succeeded = sum(1 for r in result if r.succeeded)
-            logger.info(f"Indexed {succeeded}/{len(chunk)} documents (batch {i // batch_size + 1})")
+        try:
+            for i in range(0, len(batch), batch_size):
+                chunk = batch[i : i + batch_size]
+                result = client.upload_documents(documents=chunk)
+                succeeded = sum(1 for r in result if r.succeeded)
+                logger.info(f"Indexed {succeeded}/{len(chunk)} documents (batch {i // batch_size + 1})")
+        except Exception as e:
+            logger.warning(f"Failed to index documents: {e}. Skipping Azure AI Search indexing.")
 
     async def hybrid_search(
         self,
@@ -180,6 +199,10 @@ class SearchService:
         Execute hybrid search combining BM25 keyword search,
         HNSW vector search, and semantic reranking.
         """
+        if self._is_placeholder():
+            logger.warning("Azure AI Search not configured — returning empty results for search")
+            return []
+
         from azure.search.documents.models import VectorizedQuery
 
         vector_query = VectorizedQuery(
@@ -189,43 +212,54 @@ class SearchService:
         )
 
         client = self._get_search_client()
-        results = client.search(
-            search_text=query_text,
-            vector_queries=[vector_query],
-            query_type="semantic",
-            semantic_configuration_name="resume-semantic-config",
-            top=top,
-            filter=filter_expr,
-            select=["id", "candidate_name", "resume_text", "skills", "projects", "experience", "resume_link", "skill_tags"],
-        )
+        try:
+            results = client.search(
+                search_text=query_text,
+                vector_queries=[vector_query],
+                query_type="semantic",
+                semantic_configuration_name="resume-semantic-config",
+                top=top,
+                filter=filter_expr,
+                select=["id", "candidate_name", "resume_text", "skills", "projects", "experience", "resume_link", "skill_tags"],
+            )
 
-        search_results = []
-        for result in results:
-            search_results.append({
-                "id": result["id"],
-                "candidate_name": result["candidate_name"],
-                "resume_text": result["resume_text"],
-                "skills": result.get("skills", ""),
-                "projects": result.get("projects", ""),
-                "experience": result.get("experience", ""),
-                "resume_link": result.get("resume_link", ""),
-                "skill_tags": result.get("skill_tags", ""),
-                "score": result.get("@search.score", 0),
-                "reranker_score": result.get("@search.reranker_score", 0),
-            })
+            search_results = []
+            for result in results:
+                search_results.append({
+                    "id": result["id"],
+                    "candidate_name": result["candidate_name"],
+                    "resume_text": result["resume_text"],
+                    "skills": result.get("skills", ""),
+                    "projects": result.get("projects", ""),
+                    "experience": result.get("experience", ""),
+                    "resume_link": result.get("resume_link", ""),
+                    "skill_tags": result.get("skill_tags", ""),
+                    "score": result.get("@search.score", 0),
+                    "reranker_score": result.get("@search.reranker_score", 0),
+                })
 
-        logger.info(f"Hybrid search returned {len(search_results)} results")
-        return search_results
+            logger.info(f"Hybrid search returned {len(search_results)} results")
+            return search_results
+        except Exception as e:
+            logger.warning(f"Search failed: {e}. Returning empty results.")
+            return []
 
     async def delete_all_documents(self):
         """Delete all documents from the index (for reindexing)."""
+        if self._is_placeholder():
+            logger.warning("Azure AI Search not configured — skipping deletion")
+            return
+
         client = self._get_search_client()
-        # Search for all document IDs
-        results = client.search(search_text="*", select=["id"], top=1000)
-        doc_ids = [{"id": r["id"]} for r in results]
-        if doc_ids:
-            client.delete_documents(documents=doc_ids)
-            logger.info(f"Deleted {len(doc_ids)} documents from index")
+        try:
+            # Search for all document IDs
+            results = client.search(search_text="*", select=["id"], top=1000)
+            doc_ids = [{"id": r["id"]} for r in results]
+            if doc_ids:
+                client.delete_documents(documents=doc_ids)
+                logger.info(f"Deleted {len(doc_ids)} documents from index")
+        except Exception as e:
+            logger.warning(f"Failed to delete index documents: {e}. Skipping.")
 
 
 def get_search_service() -> SearchService:

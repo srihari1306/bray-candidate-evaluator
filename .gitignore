@@ -5,3 +5,15 @@ __pycache__/
 node_modules/
 dist/
 .DS_Store
+backend/data/interviews.json
+backend/data/evaluations.json
+backend/data/*.db
+
+# Local virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing and caches
+.pytest_cache/

@@ -47,6 +47,13 @@ class EmbeddingService:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
+        if (not self.settings.AZURE_OPENAI_API_KEY or 
+            "your-" in self.settings.AZURE_OPENAI_API_KEY or 
+            not self.settings.AZURE_OPENAI_ENDPOINT or 
+            "your-" in self.settings.AZURE_OPENAI_ENDPOINT):
+            logger.warning("Using mock embedding generator")
+            return [0.0] * self.settings.EMBEDDING_DIMENSIONS
+
         async def _embed():
             response = self.client.embeddings.create(
                 input=text[:8191],  # Max input length
@@ -55,14 +62,17 @@ class EmbeddingService:
             )
             return response.data[0].embedding
 
-        embedding = await retry_async(
-            _embed,
-            max_retries=self.settings.MAX_RETRIES,
-            operation_name="Generate embedding",
-        )
-
-        self._cache[cache_key] = embedding
-        return embedding
+        try:
+            embedding = await retry_async(
+                _embed,
+                max_retries=self.settings.MAX_RETRIES,
+                operation_name="Generate embedding",
+            )
+            self._cache[cache_key] = embedding
+            return embedding
+        except Exception as e:
+            logger.warning(f"Embedding API call failed: {e}. Falling back to mock embedding.")
+            return [0.0] * self.settings.EMBEDDING_DIMENSIONS
 
     async def generate_embeddings_batch(
         self, texts: list[str], batch_size: Optional[int] = None
@@ -71,6 +81,13 @@ class EmbeddingService:
         Generate embeddings for multiple texts in batches.
         Azure OpenAI supports up to 16 texts per API call.
         """
+        if (not self.settings.AZURE_OPENAI_API_KEY or 
+            "your-" in self.settings.AZURE_OPENAI_API_KEY or 
+            not self.settings.AZURE_OPENAI_ENDPOINT or 
+            "your-" in self.settings.AZURE_OPENAI_ENDPOINT):
+            logger.warning(f"Using mock embedding generator for batch of {len(texts)} texts")
+            return [[0.0] * self.settings.EMBEDDING_DIMENSIONS for _ in texts]
+
         batch_size = batch_size or self.settings.EMBEDDING_BATCH_SIZE
         all_embeddings: list[list[float]] = []
 

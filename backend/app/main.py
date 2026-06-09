@@ -13,7 +13,7 @@ import os
 
 from app.config import get_settings
 from app.utils.logger import setup_logging, get_logger
-from app.routers import evaluate, candidates, sharepoint, history, health
+from app.routers import evaluate, candidates, sharepoint, history, health, interview
 
 logger = get_logger("main")
 
@@ -25,9 +25,12 @@ async def lifespan(app: FastAPI):
     setup_logging(debug=settings.DEBUG, structured=not settings.DEBUG)
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
-    # Store evaluation results in-memory (replace with DB in production)
-    app.state.evaluations = {}
-    app.state.candidates = {}
+    # Preload JSON databases into memory on startup
+    from app.db.session_db import get_interview_db
+    from app.db.evaluation_db import get_evaluation_db
+    
+    get_interview_db()
+    get_evaluation_db()
 
     yield
 
@@ -48,9 +51,14 @@ def create_app() -> FastAPI:
     )
 
     # ─── CORS ───
+    origins = list(settings.cors_origin_list)
+    for port_origin in ["http://localhost:3001", "http://127.0.0.1:3001"]:
+        if port_origin not in origins:
+            origins.append(port_origin)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origin_list,
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -83,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(candidates.router, prefix="/api", tags=["Candidates"])
     app.include_router(sharepoint.router, prefix="/api", tags=["SharePoint"])
     app.include_router(history.router, prefix="/api", tags=["History"])
+    app.include_router(interview.router, prefix="/interview", tags=["Interview"])
 
     # Serve local resumes
     os.makedirs("resumes", exist_ok=True)
