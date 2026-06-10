@@ -2,10 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import SetupStage from './stages/SetupStage';
 import QuestionStage from './stages/QuestionStage';
 import GoodbyeStage from './stages/GoodbyeStage';
-import Config from './Config';
 import { useInterviewSession } from './hooks/useInterviewSession';
 import { useMediaRecorder } from './hooks/useMediaRecorder';
-import { useTeamsContext } from './hooks/useTeamsContext';
 import './App.css';
 
 /**
@@ -13,22 +11,9 @@ import './App.css';
  *
  * Stages: loading → setup → question (x3) → goodbye
  *
- * Routes /config to the Teams configuration page.
- * Otherwise extracts session_id via Teams context or URL params and runs the interview.
+ * In standalone mode (outside Teams), session_id is read from URL query params.
  */
 export default function App() {
-  // ─── Config route check (must come before any hooks) ───
-  const path = window.location.pathname;
-  const isConfig =
-    path === '/config' ||
-    path === '/config/' ||
-    path.endsWith('/config.html');
-
-  if (isConfig) {
-    return <Config />;
-  }
-
-  // ─── Interview state ───
   const [stage, setStage] = useState('loading');
   const [questionIndex, setQuestionIndex] = useState(0);
   const [loadError, setLoadError] = useState(null);
@@ -44,35 +29,28 @@ export default function App() {
   } = useInterviewSession();
 
   const { startRecording, stopRecordingAndUpload } = useMediaRecorder();
-  const { sessionId, error: ctxError, resolveSessionId } = useTeamsContext();
 
-  // ─── Resolve session_id and load session ───
+  // Extract session_id from URL query params (standalone mode)
   useEffect(() => {
     const init = async () => {
       try {
-        // Try Teams context first, then URL params
         const params = new URLSearchParams(window.location.search);
-        let sid = params.get('session_id');
+        let sessionId = params.get('session_id');
 
         // Also try Teams-style context parameter
-        if (!sid) {
+        if (!sessionId) {
           const context = params.get('context');
           if (context) {
             try {
               const parsed = JSON.parse(decodeURIComponent(context));
-              sid = parsed.session_id;
+              sessionId = parsed.session_id;
             } catch {
               // Not valid JSON
             }
           }
         }
 
-        // Try Teams SDK context
-        if (!sid) {
-          sid = await resolveSessionId();
-        }
-
-        if (!sid) {
+        if (!sessionId) {
           setLoadError(
             'No session ID found. Please use the interview link from your email.'
           );
@@ -80,7 +58,7 @@ export default function App() {
           return;
         }
 
-        await loadSession(sid);
+        await loadSession(sessionId);
         setStage('setup');
       } catch (err) {
         setLoadError(err.message || 'Failed to load interview session.');
@@ -164,7 +142,7 @@ export default function App() {
         <div className="error-screen">
           <div className="error-icon">⚠️</div>
           <h2>Unable to Load Interview</h2>
-          <p>{loadError || sessionError || ctxError || 'An unexpected error occurred.'}</p>
+          <p>{loadError || sessionError || 'An unexpected error occurred.'}</p>
           <button className="primary-button ready" onClick={handleRetry}>
             Try Again
           </button>

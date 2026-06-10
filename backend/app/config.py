@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Candidate Evaluator"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:3000,http://localhost:3001,http://127.0.0.1:3001,https://80vvvjx6.inc1.devtunnels.ms:3001,https://69bs59l0.inc1.devtunnels.ms:8000"
+    CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:3000,http://localhost:3001"
 
     # ─── Azure AD / Entra ID ───
     AZURE_TENANT_ID: str = ""
@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # ─── Smart Interviewer: Gmail SMTP Email ───
     GMAIL_USER: str = ""
     GMAIL_APP_PASSWORD: str = ""
-    MOCK_EMAIL: bool = False
+    MOCK_EMAIL: bool = True
 
     # ─── Smart Interviewer: Persistence ───
     INTERVIEWS_JSON_PATH: str = "data/interviews.json"

@@ -94,10 +94,6 @@ def _render_email_html(candidate_name: str, scheduled_time: str, teams_link: str
                                         </td>
                                     </tr>
                                 </table>
-
-                                <p style="color:#777;font-size:12px;margin:20px 0 0 0;">
-                                    Session Reference ID: <code style="background:#eef;padding:2px 6px;border-radius:4px;">{session_id}</code>
-                                </p>
                             </td>
                         </tr>
                         <!-- Footer -->
@@ -142,28 +138,6 @@ async def send_interview_email(
         session_id=session_id,
     )
 
-    # Format plain text content for email clients that don't support HTML
-    try:
-        dt = datetime.fromisoformat(scheduled_time.replace("Z", "+00:00"))
-        formatted_time = dt.strftime("%A, %B %d, %Y at %I:%M %p %Z")
-    except Exception:
-        formatted_time = scheduled_time
-
-    text_content = (
-        f"Dear {candidate_name},\n\n"
-        f"You have been invited to an AI-powered interview. Please join at the scheduled time:\n"
-        f"{formatted_time}\n\n"
-        f"Join the interview using this Teams meeting link:\n"
-        f"{teams_link_with_session}\n\n"
-        f"Before you join:\n"
-        f"- Ensure your camera is working\n"
-        f"- Ensure your microphone is working\n"
-        f"- Be in a quiet environment\n"
-        f"- Use Google Chrome or Microsoft Edge\n\n"
-        f"Note: This interview is conducted by an AI system. You will be asked 3 questions and your responses will be recorded for evaluation.\n\n"
-        f"Session Reference ID: {session_id}\n"
-    )
-
     # Log the email details for reference
     logger.info(f"──── Interview Email ────")
     logger.info(f"  To: {candidate_name} <{candidate_email}>")
@@ -173,38 +147,29 @@ async def send_interview_email(
     logger.info(f"  Teams Link: {teams_link_with_session}")
     logger.info(f"─────────────────────────")
 
-    if settings.MOCK_EMAIL:
-        logger.info("MOCK_EMAIL is True. Email logged to console only.")
+    if settings.MOCK_EMAIL or not settings.GMAIL_USER or not settings.GMAIL_APP_PASSWORD:
+        logger.warning("MOCK_EMAIL is True or Gmail credentials not configured. Email logged to console only.")
         logger.info(f"[MOCK EMAIL] HTML content length: {len(html_content)} characters")
         return True
-
-    if not settings.GMAIL_USER or not settings.GMAIL_APP_PASSWORD:
-        logger.error("✗ Gmail credentials not configured. Cannot send email when MOCK_EMAIL is False.")
-        return False
 
     # Send via SMTP
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "Interview Invitation — Smart Interviewer"
-        msg["From"] = f"Smart Interviewer <{settings.GMAIL_USER}>"
+        msg["From"] = settings.GMAIL_USER
         msg["To"] = candidate_email
 
-        # Attach text and HTML parts
-        msg.attach(MIMEText(text_content, "plain"))
-        msg.attach(MIMEText(html_content, "html"))
+        part = MIMEText(html_content, "html")
+        msg.attach(part)
 
         # Connect to Gmail SMTP server
-        logger.info(f"Connecting to Gmail SMTP server (smtp.gmail.com:587) using user: {settings.GMAIL_USER}...")
+        logger.info(f"Connecting to Gmail SMTP server using user: {settings.GMAIL_USER}...")
         
         # Run blocking SMTP calls in executor
         import asyncio
-        import ssl
         def _send():
-            context = ssl.create_default_context()
-            with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-                server.ehlo()
-                server.starttls(context=context)
-                server.ehlo()
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.starttls()
                 server.login(settings.GMAIL_USER, settings.GMAIL_APP_PASSWORD)
                 server.sendmail(settings.GMAIL_USER, candidate_email, msg.as_string())
         
