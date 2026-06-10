@@ -17,3 +17,6 @@ ENV/
 
 # Testing and caches
 .pytest_cache/
+
+teams-panel-dist/
+teams-panel-dist/smart-interviewer.zip
