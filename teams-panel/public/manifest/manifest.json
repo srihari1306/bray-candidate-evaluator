@@ -1,14 +1,14 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "id": "e67b2d5a-cab8-43d9-952b-7ab8f0cd6921",
   "packageName": "com.bray.candidate.evaluator.interviewer",
   "developer": {
     "name": "Bray Candidate Evaluator",
-    "websiteUrl": "https://www.example.com",
-    "privacyUrl": "https://www.example.com/privacy",
-    "termsOfUseUrl": "https://www.example.com/terms"
+    "websiteUrl": "https://80vvvjx6.inc1.devtunnels.ms:3001",
+    "privacyUrl": "https://80vvvjx6.inc1.devtunnels.ms:3001",
+    "termsOfUseUrl": "https://80vvvjx6.inc1.devtunnels.ms:3001"
   },
   "icons": {
     "color": "color.png",
@@ -25,10 +25,11 @@
   "accentColor": "#1F4E79",
   "configurableTabs": [
     {
-      "configurationUrl": "https://<your_ngrok_url>/",
+      "configurationUrl": "https://80vvvjx6.inc1.devtunnels.ms:3001/config",
       "canUpdateConfiguration": true,
       "scopes": [
-        "groupchat"
+        "groupChat",
+        "team"
       ],
       "context": [
         "meetingSidePanel"
@@ -40,9 +41,8 @@
     "messageTeamMembers"
   ],
   "validDomains": [
-    "<your_ngrok_url>",
-    "localhost",
-    "*.blob.core.windows.net",
-    "*.cognitive.microsoft.com"
+    "80vvvjx6.inc1.devtunnels.ms",
+    "69bs59l0.inc1.devtunnels.ms",
+    "localhost"
   ]
 }
