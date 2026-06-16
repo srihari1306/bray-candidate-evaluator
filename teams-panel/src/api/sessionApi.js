@@ -12,9 +12,9 @@ export const getSpeechToken = () =>
     return r.json();
   });
 
-export const getUploadUrl = (id) =>
-  fetch(`${BASE}/interview/upload-url/${id}`).then(async (r) => {
-    console.log(`[getUploadUrl API] status: ${r.status}`);
+export const getUploadUrl = (id, type = 'screen') =>
+  fetch(`${BASE}/interview/upload-url/${id}?type=${type}`).then(async (r) => {
+    console.log(`[getUploadUrl API] type: ${type}, status: ${r.status}`);
     if (!r.ok) {
       let errText = '';
       try {

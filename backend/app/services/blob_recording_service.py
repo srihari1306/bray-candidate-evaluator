@@ -17,18 +17,19 @@ def _is_placeholder(conn_str: str) -> bool:
     conn_str_lower = conn_str.lower()
     return "accountname=..." in conn_str_lower or "your-account" in conn_str_lower or "endpoint=" in conn_str_lower and "xxx" in conn_str_lower
 
-def generate_upload_sas_url(session_id: str) -> dict:
+def generate_upload_sas_url(session_id: str, type: str = "screen") -> dict:
     """
     Generate a write-only SAS URL for uploading an interview recording.
 
     Args:
-        session_id: Interview session ID (used as blob name)
+        session_id: Interview session ID
+        type: "screen" or "camera"
 
     Returns:
         { sas_url: str, blob_name: str }
     """
     settings = get_settings()
-    blob_name = f"{session_id}.webm"
+    blob_name = f"{session_id}_{type}.webm"
     container_name = settings.AZURE_BLOB_RECORDINGS_CONTAINER
 
     if _is_placeholder(settings.AZURE_STORAGE_CONNECTION_STRING):

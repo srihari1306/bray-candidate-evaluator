@@ -138,5 +138,6 @@ export interface InterviewSession {
   final_score: number | null;
   answers: InterviewAnswer[];
   recording_sas_url: string;
+  camera_sas_url?: string;
   completed_at: string | null;
 }

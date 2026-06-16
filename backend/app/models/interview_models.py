@@ -39,6 +39,7 @@ class SubmitAnswersRequest(BaseModel):
     session_id: str
     answers: list[AnswerInput]
     recording_blob_name: str = Field(default="", description="Blob name of uploaded recording")
+    camera_blob_name: str = Field(default="", description="Blob name of uploaded camera recording")
 
 
 # ─── Response Models ────────────────────────────────────────────────────────
@@ -90,6 +91,7 @@ class InterviewResultsResponse(BaseModel):
     final_score: Optional[float] = None
     answers: list[ScoredAnswer] = Field(default_factory=list)
     recording_sas_url: str = ""
+    camera_sas_url: str = ""
     completed_at: Optional[str] = None
 
 
@@ -109,3 +111,5 @@ class InterviewSessionDocument(BaseModel):
     final_score: Optional[float] = None
     recording_blob_url: str = ""
     recording_sas_url: str = ""
+    camera_blob_url: str = ""
+    camera_sas_url: str = ""

@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # ─── Smart Interviewer: Gmail SMTP Email ───
     GMAIL_USER: str = ""
     GMAIL_APP_PASSWORD: str = ""
-    MOCK_EMAIL: bool = True
+    MOCK_EMAIL: bool = False
 
     # ─── Smart Interviewer: Persistence ───
     INTERVIEWS_JSON_PATH: str = "data/interviews.json"
@@ -84,6 +84,7 @@ class Settings(BaseSettings):
 
     # ─── Smart Interviewer: Teams Meeting ───
     TEAMS_STATIC_MEETING_URL: str = ""
+    INTERVIEW_PANEL_BASE_URL: str = "http://localhost:3001"
 
     # ─── Smart Interviewer: Blob Recordings ───
     AZURE_BLOB_RECORDINGS_CONTAINER: str = "interview-recordings"

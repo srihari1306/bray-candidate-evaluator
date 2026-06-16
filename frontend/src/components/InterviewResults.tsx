@@ -141,9 +141,18 @@ export default function InterviewResults({ open, onClose, session }: InterviewRe
           <Button
             variant="outlined"
             onClick={() => window.open(session.recording_sas_url, '_blank')}
-            startIcon={<span>🎬</span>}
+            startIcon={<span>💻</span>}
           >
-            Watch Recording
+            Watch Screen Recording
+          </Button>
+        )}
+        {session.camera_sas_url && session.camera_sas_url !== 'null' && session.camera_sas_url !== '' && (
+          <Button
+            variant="outlined"
+            onClick={() => window.open(session.camera_sas_url, '_blank')}
+            startIcon={<span>📷</span>}
+          >
+            Watch Camera Recording
           </Button>
         )}
         <Button

@@ -80,7 +80,7 @@ export default function App() {
 
     try {
       // Stop recording and upload
-      const blobName = await stopRecordingAndUpload(session?.id);
+      const { screenBlobName, cameraBlobName } = await stopRecordingAndUpload(session?.id) || {};
 
       // Construct the final list of answers synchronously, combining Q1/Q2 state with Q3 transcript
       const totalQuestions = session?.questions?.length || 3;
@@ -94,7 +94,7 @@ export default function App() {
       ];
 
       // Submit answers to backend (triggers async evaluation)
-      await submitAllAnswers(blobName || '', finalAnswers);
+      await submitAllAnswers(screenBlobName || '', cameraBlobName || '', finalAnswers);
     } catch (err) {
       console.error('Error during interview completion:', err);
       // Don't change stage — stay on goodbye

@@ -46,13 +46,14 @@ export function useInterviewSession() {
     });
   }, [session]);
 
-  const submitAllAnswers = useCallback(async (recordingBlobName = '', finalAnswers = null) => {
+  const submitAllAnswers = useCallback(async (recordingBlobName = '', cameraBlobName = '', finalAnswers = null) => {
     if (!session) throw new Error('No session loaded');
     try {
       const result = await submitAnswers({
         session_id: session.id,
         answers: finalAnswers || answers,
         recording_blob_name: recordingBlobName,
+        camera_blob_name: cameraBlobName,
       });
       return result;
     } catch (err) {

@@ -14,7 +14,7 @@ from app.utils.logger import get_logger
 logger = get_logger("services.email_service")
 
 
-def _render_email_html(candidate_name: str, scheduled_time: str, teams_link: str, session_id: str) -> str:
+def _render_email_html(candidate_name: str, scheduled_time: str, interview_url: str, session_id: str) -> str:
     """Render a polished HTML email template for the interview invitation."""
     try:
         dt = datetime.fromisoformat(scheduled_time.replace("Z", "+00:00"))
@@ -68,7 +68,7 @@ def _render_email_html(candidate_name: str, scheduled_time: str, teams_link: str
                                 <table width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
                                     <tr>
                                         <td align="center">
-                                            <a href="{teams_link}" style="display:inline-block;background:linear-gradient(135deg,#1F4E79,#2980b9);color:#fff;text-decoration:none;padding:14px 40px;border-radius:8px;font-size:16px;font-weight:600;letter-spacing:0.3px;">
+                                            <a href="{interview_url}" style="display:inline-block;background:linear-gradient(135deg,#1F4E79,#2980b9);color:#fff;text-decoration:none;padding:14px 40px;border-radius:8px;font-size:16px;font-weight:600;letter-spacing:0.3px;">
                                                 Join Interview Meeting
                                             </a>
                                         </td>
@@ -117,7 +117,6 @@ async def send_interview_email(
     candidate_name: str,
     candidate_email: str,
     scheduled_time: str,
-    teams_link: str,
     session_id: str,
 ) -> bool:
     """
@@ -126,15 +125,13 @@ async def send_interview_email(
     """
     settings = get_settings()
 
-    # Build the Teams link with session_id parameter
-    separator = "&" if "?" in teams_link else "?"
-    teams_link_with_session = f"{teams_link}{separator}context=%7B%22session_id%22%3A%22{session_id}%22%7D"
+    interview_url = f"{settings.INTERVIEW_PANEL_BASE_URL}?session_id={session_id}"
 
     # Render the HTML email
     html_content = _render_email_html(
         candidate_name=candidate_name,
         scheduled_time=scheduled_time,
-        teams_link=teams_link_with_session,
+        interview_url=interview_url,
         session_id=session_id,
     )
 
@@ -144,7 +141,7 @@ async def send_interview_email(
     logger.info(f"  Subject: Interview Invitation")
     logger.info(f"  Scheduled: {scheduled_time}")
     logger.info(f"  Session ID: {session_id}")
-    logger.info(f"  Teams Link: {teams_link_with_session}")
+    logger.info(f"  Interview URL: {interview_url}")
     logger.info(f"─────────────────────────")
 
     if settings.MOCK_EMAIL or not settings.GMAIL_USER or not settings.GMAIL_APP_PASSWORD:

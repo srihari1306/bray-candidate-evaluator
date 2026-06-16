@@ -79,7 +79,6 @@ async def schedule_interview(request: ScheduleInterviewRequest):
             candidate_name=request.candidate_name,
             candidate_email=request.candidate_email,
             scheduled_time=request.scheduled_time,
-            teams_link=teams_link,
             session_id=session_id,
         )
     except Exception as e:
@@ -141,12 +140,12 @@ async def speech_token():
 
 
 @router.get("/upload-url/{session_id}", response_model=UploadUrlResponse)
-async def get_upload_url(session_id: str):
+async def get_upload_url(session_id: str, type: str = "screen"):
     """
     Generate a SAS URL for uploading the interview recording.
     """
     try:
-        result = generate_upload_sas_url(session_id)
+        result = generate_upload_sas_url(session_id, type)
         return UploadUrlResponse(sas_url=result["sas_url"], blob_name=result["blob_name"])
     except Exception as e:
         logger.error(f"Upload URL generation failed: {e}", exc_info=True)
@@ -165,22 +164,30 @@ async def submit_answers(request: SubmitAnswersRequest, background_tasks: Backgr
     if not session:
         raise HTTPException(status_code=404, detail="Interview session not found")
 
-    # Save recording blob reference and SAS read URL
+    # Save recording blob references and SAS read URLs
+    updates = {}
     if request.recording_blob_name:
         try:
-            recording_sas_url = None
-            try:
-                recording_sas_url = generate_read_sas_url(request.recording_blob_name)
-            except Exception as e:
-                logger.warning(f"Failed to generate SAS read URL for {request.recording_blob_name}: {e}")
+            recording_sas_url = generate_read_sas_url(request.recording_blob_name)
+            updates["recording_blob_url"] = request.recording_blob_name
+            updates["recording_sas_url"] = recording_sas_url
+        except Exception as e:
+            logger.warning(f"Failed to generate SAS read URL for {request.recording_blob_name}: {e}")
+            
+    if getattr(request, "camera_blob_name", None):
+        try:
+            camera_sas_url = generate_read_sas_url(request.camera_blob_name)
+            updates["camera_blob_url"] = request.camera_blob_name
+            updates["camera_sas_url"] = camera_sas_url
+        except Exception as e:
+            logger.warning(f"Failed to generate SAS read URL for {request.camera_blob_name}: {e}")
 
+    if updates:
+        try:
             await db.update_session(
                 request.session_id,
                 session["candidate_id"],
-                {
-                    "recording_blob_url": request.recording_blob_name,
-                    "recording_sas_url": recording_sas_url,
-                },
+                updates,
             )
         except Exception as e:
             logger.warning(f"Failed to save recording blob info: {e}")
@@ -233,6 +240,14 @@ async def get_results(session_id: str):
         except Exception:
             pass
 
+    camera_sas_url = session.get("camera_sas_url") or ""
+    camera_blob = session.get("camera_blob_url", "")
+    if camera_blob:
+        try:
+            camera_sas_url = generate_read_sas_url(camera_blob)
+        except Exception:
+            pass
+
     return InterviewResultsResponse(
         session_id=session_id,
         candidate_id=session.get("candidate_id", ""),
@@ -242,6 +257,7 @@ async def get_results(session_id: str):
         final_score=session.get("final_score"),
         answers=scored_answers,
         recording_sas_url=recording_sas_url,
+        camera_sas_url=camera_sas_url,
         completed_at=session.get("completed_at"),
     )
 
@@ -277,6 +293,14 @@ async def get_candidate_session(candidate_id: str, evaluation_id: Optional[str] 
         except Exception:
             pass
 
+    camera_sas_url = ""
+    camera_blob = session.get("camera_blob_url", "")
+    if camera_blob:
+        try:
+            camera_sas_url = generate_read_sas_url(camera_blob)
+        except Exception:
+            pass
+
     return {
         "session": {
             "session_id": session.get("id", ""),
@@ -287,6 +311,7 @@ async def get_candidate_session(candidate_id: str, evaluation_id: Optional[str] 
             "final_score": session.get("final_score"),
             "answers": scored_answers,
             "recording_sas_url": recording_sas_url,
+            "camera_sas_url": camera_sas_url,
             "completed_at": session.get("completed_at"),
         }
     }
