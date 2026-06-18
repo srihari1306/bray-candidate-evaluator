@@ -48,3 +48,7 @@ numpy
 
 # ─── Smart Interviewer ───
 aiosqlite==0.20.0
+
+opencv-python-headless==4.9.0.80
+
+azure-cosmos==4.7.0

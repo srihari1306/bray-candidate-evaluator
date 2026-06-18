@@ -9,9 +9,10 @@ export default function SetupStage({ onDone, candidateName }) {
     camera: false,
     microphone: false,
     screen: false,
+    fullscreen: false,
   });
 
-  const allChecked = checks.camera && checks.microphone && checks.screen;
+  const allChecked = checks.camera && checks.microphone && checks.screen && checks.fullscreen;
 
   const toggle = (key) => {
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -35,6 +36,12 @@ export default function SetupStage({ onDone, candidateName }) {
       icon: '🖥️',
       title: 'Share Your Screen',
       description: 'Be ready to share your entire screen when prompted.',
+    },
+    {
+      key: 'fullscreen',
+      icon: '⛶',
+      title: 'Fullscreen Mode',
+      description: 'Your interview will run in fullscreen mode — do not exit during the session.',
     },
   ];
 

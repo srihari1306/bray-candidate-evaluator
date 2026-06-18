@@ -107,12 +107,14 @@ File: {filename}"""
 
         async def _analyze():
             client = self._get_client()
-            poller = client.begin_analyze_document(
-                "prebuilt-layout",
-                body=file_content,
-                content_type=content_type,
-            )
-            result = poller.result()
+            def run_sync():
+                poller = client.begin_analyze_document(
+                    "prebuilt-layout",
+                    body=file_content,
+                    content_type=content_type,
+                )
+                return poller.result()
+            result = await asyncio.to_thread(run_sync)
             return result.content or ""
 
         try:
@@ -145,7 +147,7 @@ File: {filename}"""
         prompt = RESUME_PARSING_PROMPT.format(resume_text=resume_text[:8000])
 
         try:
-            response = llm_client.chat.completions.create(
+            response = await llm_client.chat.completions.create(
                 model=self.settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},

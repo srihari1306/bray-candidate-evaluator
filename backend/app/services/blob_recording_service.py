@@ -124,7 +124,7 @@ def generate_read_sas_url(blob_name: str) -> str:
             blob_name=blob_name,
             account_key=account_key,
             permission=BlobSasPermissions(read=True),
-            expiry=datetime.now(timezone.utc) + timedelta(hours=2),
+            expiry=datetime.now(timezone.utc) + timedelta(hours=24),
         )
 
         return f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_name}?{sas_token}"

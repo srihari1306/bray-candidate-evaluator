@@ -22,6 +22,7 @@ import {
   Assessment as AssessIcon,
   Science as EvalIcon,
   VideoCall as InterviewIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -108,66 +109,40 @@ export default function DashboardPage() {
   const [interviewModalCandidate, setInterviewModalCandidate] = useState<CandidateResult | null>(null);
   const [interviewResultsOpen, setInterviewResultsOpen] = useState(false);
   const [selectedInterviewSession, setSelectedInterviewSession] = useState<InterviewSession | null>(null);
-  const [pollingSessionIds, setPollingSessionIds] = useState<Set<string>>(new Set());
 
-  // Load interview sessions for all candidates on mount
-  useEffect(() => {
+  const fetchAllInterviewStatuses = useCallback(async () => {
     if (!currentEvaluation?.candidates?.length) return;
-
-    const loadSessions = async () => {
-      const sessions: Record<string, InterviewSession> = {};
-      for (const candidate of currentEvaluation.candidates) {
-        try {
-          const response = await interviewApi.getCandidateSession(candidate.id, currentEvaluation.evaluation_id);
-          if (response.data.session) {
-            sessions[candidate.id] = response.data.session;
-            // Start polling for non-completed sessions
-            const s = response.data.session;
-            if (s.status === 'scheduled' || s.status === 'in_progress') {
-              setPollingSessionIds((prev) => new Set([...prev, s.session_id]));
-            }
-          }
-        } catch {
-          // No session for this candidate
-        }
+    
+    const sessionPromises = currentEvaluation.candidates.map(async (candidate) => {
+      try {
+        const response = await interviewApi.getCandidateSession(candidate.id, currentEvaluation.evaluation_id);
+        return { candidateId: candidate.id, session: response.data.session };
+      } catch {
+        return { candidateId: candidate.id, session: null };
       }
-      setInterviewSessions(sessions);
-    };
+    });
 
-    loadSessions();
+    const results = await Promise.all(sessionPromises);
+    
+    setInterviewSessions(prev => {
+      const next = { ...prev };
+      results.forEach(r => {
+        if (r.session) {
+          next[r.candidateId] = r.session;
+        }
+      });
+      return next;
+    });
   }, [currentEvaluation]);
 
-  // Poll for active sessions
+  // Load sessions on mount/eval change, and on window focus
   useEffect(() => {
-    if (pollingSessionIds.size === 0) return;
-
-    const interval = setInterval(async () => {
-      for (const sessionId of pollingSessionIds) {
-        try {
-          const response = await interviewApi.getResults(sessionId, currentEvaluation?.evaluation_id);
-          const data = response.data;
-          if (data.status === 'completed' || data.status === 'failed') {
-            setInterviewSessions((prev) => ({
-              ...prev,
-              [data.candidate_id]: data,
-            }));
-            setPollingSessionIds((prev) => {
-              const next = new Set(prev);
-              next.delete(sessionId);
-              return next;
-            });
-            if (data.status === 'completed') {
-              setToast({ open: true, message: `Interview completed for ${data.candidate_name}! Score: ${data.final_score}/10` });
-            }
-          }
-        } catch {
-          // Will retry next poll
-        }
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [pollingSessionIds]);
+    fetchAllInterviewStatuses();
+    
+    const handleFocus = () => fetchAllInterviewStatuses();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [fetchAllInterviewStatuses]);
 
   const handleInterviewScheduled = (candidateId: string, sessionId: string, scheduledTime: string) => {
     setInterviewSessions((prev) => ({
@@ -184,7 +159,6 @@ export default function DashboardPage() {
         completed_at: null,
       },
     }));
-    setPollingSessionIds((prev) => new Set([...prev, sessionId]));
     setToast({ open: true, message: 'Interview scheduled successfully!' });
   };
 
@@ -243,6 +217,16 @@ export default function DashboardPage() {
     name: c.candidate_name,
     ...Object.fromEntries(c.skill_scores.map((s) => [s.skill, s.score])),
   }));
+
+  const getProctoringBadge = (status?: string, risk?: string) => {
+    if (!status || status === 'pending') return null;
+    if (status === 'analyzing') return <Chip label="⏳ Analyzing" color="default" size="small" />;
+    if (status === 'flagged')   return <Chip label="🔴 Flagged" color="error" size="small" />;
+    if (status === 'review')    return <Chip label="🟡 Review" color="warning" size="small" />;
+    if (status === 'clean')     return <Chip label="🟢 Clean" color="success" size="small" />;
+    if (status === 'failed')    return <Chip label="⚠️ Error" color="default" size="small" />;
+    return null;
+  };
 
   // DataGrid columns
   const columns: GridColDef[] = [
@@ -332,7 +316,7 @@ export default function DashboardPage() {
     {
       field: 'interview',
       headerName: 'Interview',
-      width: 170,
+      width: 180,
       sortable: false,
       renderCell: (params: GridRenderCellParams) => {
         const candidateId = params.row.id;
@@ -383,27 +367,24 @@ export default function DashboardPage() {
 
         if (session.status === 'completed') {
           return (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
               <Chip
-                label={`${session.final_score}/10`}
+                label={`${session.final_score}/10 — View`}
                 size="small"
+                onClick={() => {
+                  setSelectedInterviewSession(session);
+                  setInterviewResultsOpen(true);
+                }}
                 sx={{
                   fontWeight: 700,
+                  cursor: 'pointer',
                   bgcolor: `${session.final_score && session.final_score >= 7 ? '#22c55e' : session.final_score && session.final_score >= 5 ? '#f59e0b' : '#ef4444'}20`,
                   color: session.final_score && session.final_score >= 7 ? '#22c55e' : session.final_score && session.final_score >= 5 ? '#f59e0b' : '#ef4444',
+                  '&:hover': {
+                    bgcolor: `${session.final_score && session.final_score >= 7 ? '#22c55e' : session.final_score && session.final_score >= 5 ? '#f59e0b' : '#ef4444'}30`,
+                  }
                 }}
               />
-              <Tooltip title="View Results">
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    setSelectedInterviewSession(session);
-                    setInterviewResultsOpen(true);
-                  }}
-                >
-                  <ViewIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
             </Box>
           );
         }
@@ -412,12 +393,30 @@ export default function DashboardPage() {
       },
     },
     {
+      field: 'proctoring',
+      headerName: 'Proctoring',
+      width: 130,
+      sortable: false,
+      renderCell: (params: GridRenderCellParams) => {
+        const candidateId = params.row.id;
+        const session = interviewSessions[candidateId];
+        
+        if (!session || session.status !== 'completed') return null;
+        
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', height: '100%' }}>
+            {getProctoringBadge(session.proctoring_status, session.proctoring_report?.overall_risk)}
+          </Box>
+        );
+      },
+    },
+    {
       field: 'actions',
       headerName: '',
-      width: 100,
+      width: 80,
       sortable: false,
       renderCell: (params: GridRenderCellParams) => (
-        <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', height: '100%', gap: 0.5 }}>
           <Tooltip title="View Details">
             <IconButton
               size="small"
@@ -472,6 +471,9 @@ export default function DashboardPage() {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button variant="outlined" size="small" startIcon={<RefreshIcon />} onClick={() => fetchAllInterviewStatuses()}>
+            Refresh Status
+          </Button>
           <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={() => handleExport('xlsx')}>
             Excel
           </Button>
@@ -730,8 +732,15 @@ export default function DashboardPage() {
       {selectedInterviewSession && (
         <InterviewResults
           open={interviewResultsOpen}
-          onClose={() => {
+          onClose={async () => {
             setInterviewResultsOpen(false);
+            const cid = selectedInterviewSession.candidate_id;
+            try {
+              const res = await interviewApi.getCandidateSession(cid, currentEvaluation?.evaluation_id);
+              if (res.data.session) {
+                setInterviewSessions(prev => ({...prev, [cid]: res.data.session}));
+              }
+            } catch (err) {}
             setSelectedInterviewSession(null);
           }}
           session={selectedInterviewSession}

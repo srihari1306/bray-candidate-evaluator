@@ -40,6 +40,7 @@ class SubmitAnswersRequest(BaseModel):
     answers: list[AnswerInput]
     recording_blob_name: str = Field(default="", description="Blob name of uploaded recording")
     camera_blob_name: str = Field(default="", description="Blob name of uploaded camera recording")
+    focus_events: list[dict] = []
 
 
 # ─── Response Models ────────────────────────────────────────────────────────
@@ -93,6 +94,8 @@ class InterviewResultsResponse(BaseModel):
     recording_sas_url: str = ""
     camera_sas_url: str = ""
     completed_at: Optional[str] = None
+    proctoring_status: Optional[str] = None
+    proctoring_report: Optional[dict] = None
 
 
 class InterviewSessionDocument(BaseModel):

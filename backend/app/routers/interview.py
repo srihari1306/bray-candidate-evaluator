@@ -22,10 +22,12 @@ from app.models.interview_models import (
     InterviewStatus,
 )
 from app.db.session_db import get_interview_db
+from app.models.proctoring_models import ProctoringResponse, ProctoringOverrideRequest
 from app.services.email_service import send_interview_email
 from app.services.speech_service import get_speech_token
 from app.services.blob_recording_service import generate_upload_sas_url, generate_read_sas_url
 from app.services.interview_evaluation_service import evaluate_answers
+from app.services.proctoring_service import analyze_session
 from app.utils.logger import get_logger
 
 router = APIRouter()
@@ -202,11 +204,112 @@ async def submit_answers(request: SubmitAnswersRequest, background_tasks: Backgr
         for a in request.answers
     ]
 
-    # Trigger async evaluation
-    logger.info(f"Queuing evaluation for session {request.session_id} ({len(answers_data)} answers)")
+    # Trigger async evaluation and proctoring
+    logger.info(f"Queuing evaluation and proctoring for session {request.session_id} ({len(answers_data)} answers)")
     background_tasks.add_task(evaluate_answers, request.session_id, answers_data)
+    background_tasks.add_task(run_proctoring, request.session_id, request.focus_events, answers_data)
 
     return {"message": "Answers received. Evaluation in progress.", "session_id": request.session_id}
+
+async def run_proctoring(session_id: str, focus_events: list, answers_data: list):
+    db = get_interview_db()
+    session = await db.get_session(session_id)
+    if not session:
+        return
+        
+    await db.update_session(session_id, session['candidate_id'], 
+        {"proctoring_status": "analyzing"})
+    
+    try:
+        report = await analyze_session(session_id, focus_events, answers_data, session)
+        await db.update_session(session_id, session['candidate_id'], {
+            "proctoring_status": "flagged" if report.cheating_detected else 
+                                 "review" if report.overall_risk == "medium" else "clean",
+            "proctoring_report": report.model_dump()
+        })
+    except Exception as e:
+        logger.error(f"Proctoring failed: {e}", exc_info=True)
+        await db.update_session(session_id, session['candidate_id'],
+            {"proctoring_status": "failed"})
+
+@router.get("/proctoring/{session_id}", response_model=ProctoringResponse)
+async def get_proctoring(session_id: str):
+    db = get_interview_db()
+    session = await db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    return ProctoringResponse(
+        session_id=session_id,
+        proctoring_status=session.get("proctoring_status", "pending"),
+        report=session.get("proctoring_report")
+    )
+
+@router.get("/proctoring/debug/{session_id}")
+async def debug_proctoring(session_id: str):
+    """
+    Debug endpoint — runs camera analysis and returns raw frame results.
+    Remove before production.
+    """
+    db = get_interview_db()
+    session = await db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    camera_blob = session.get("camera_blob_url", "")
+    if not camera_blob:
+        return {"error": "No camera blob found for this session"}
+    
+    from app.services.frame_extraction_service import extract_frames
+    from app.services.computer_vision_service import analyze_frame_for_people
+    from app.config import get_settings
+    
+    settings = get_settings()
+    frames = await extract_frames(camera_blob, settings.PROCTORING_FRAME_INTERVAL_SECONDS)
+    
+    frame_results = []
+    for idx, frame_bytes in enumerate(frames[:10]):  # first 10 frames only
+        try:
+            result = await analyze_frame_for_people(frame_bytes)
+            people = result.get("peopleResult", {}).get("values", [])
+            objects = result.get("objectsResult", {}).get("values", [])
+            
+            frame_results.append({
+                "frame": idx,
+                "people_count": len(people),
+                "people_confidences": [round(p.get("confidence", 0), 3) for p in people],
+                "objects": [
+                    {"name": o.get("name"), "confidence": round(o.get("confidence", 0), 3)}
+                    for o in objects
+                ]
+            })
+        except Exception as e:
+            frame_results.append({"frame": idx, "error": str(e)})
+    
+    return {
+        "session_id": session_id,
+        "camera_blob": camera_blob,
+        "frames_analyzed": len(frame_results),
+        "frame_results": frame_results
+    }
+
+@router.post("/proctoring/{session_id}/override", response_model=ProctoringResponse)
+async def override_proctoring(session_id: str, request: ProctoringOverrideRequest):
+    db = get_interview_db()
+    session = await db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    await db.update_session(session_id, session['candidate_id'], {
+        "proctoring_status": request.override_status
+    })
+    
+    session = await db.get_session(session_id)
+    return ProctoringResponse(
+        session_id=session_id,
+        proctoring_status=session.get("proctoring_status", "pending"),
+        report=session.get("proctoring_report")
+    )
 
 
 @router.get("/results/{session_id}", response_model=InterviewResultsResponse)
@@ -259,6 +362,8 @@ async def get_results(session_id: str):
         recording_sas_url=recording_sas_url,
         camera_sas_url=camera_sas_url,
         completed_at=session.get("completed_at"),
+        proctoring_status=session.get("proctoring_status"),
+        proctoring_report=session.get("proctoring_report"),
     )
 
 
@@ -313,5 +418,7 @@ async def get_candidate_session(candidate_id: str, evaluation_id: Optional[str] 
             "recording_sas_url": recording_sas_url,
             "camera_sas_url": camera_sas_url,
             "completed_at": session.get("completed_at"),
+            "proctoring_status": session.get("proctoring_status"),
+            "proctoring_report": session.get("proctoring_report"),
         }
     }

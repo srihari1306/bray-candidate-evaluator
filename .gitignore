@@ -9,6 +9,8 @@ backend/data/interviews.json
 backend/data/evaluations.json
 backend/data/*.db
 
+backend/resumes/
+
 # Local virtual environments
 .venv/
 venv/

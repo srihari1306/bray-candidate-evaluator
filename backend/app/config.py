@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     AZURE_DOC_INTELLIGENCE_ENDPOINT: str = ""
     AZURE_DOC_INTELLIGENCE_KEY: str = ""
 
+    # ─── Azure Computer Vision ───
+    AZURE_COMPUTER_VISION_ENDPOINT: str = ""
+    AZURE_COMPUTER_VISION_KEY: str = ""
+
     # ─── Azure Blob Storage ───
     AZURE_STORAGE_CONNECTION_STRING: str = ""
     AZURE_STORAGE_CONTAINER: str = "resumes"
@@ -92,6 +96,17 @@ class Settings(BaseSettings):
     # ─── Smart Interviewer: Interview Config ───
     INTERVIEW_QUESTIONS: str = '["Tell me about yourself.","Describe a challenging project you worked on.","Why are you interested in this role?"]'
     INTERVIEW_SESSION_SECRET: str = "change_this_to_a_long_random_secret"
+
+    # ─── Smart Interviewer: Proctoring Config ───
+    PROCTORING_FRAME_INTERVAL_SECONDS: int = 5
+    PROCTORING_SUSPICIOUS_DOMAINS: str = "google.com,chatgpt.com,chat.openai.com,bing.com,stackoverflow.com,chegg.com"
+
+    # ─── Azure Cosmos DB ───
+    AZURE_COSMOS_ENDPOINT: str = ""
+    AZURE_COSMOS_KEY: str = ""
+    AZURE_COSMOS_DATABASE: str = "bray-evaluator"
+    AZURE_COSMOS_SESSIONS_CONTAINER: str = "sessions"
+    AZURE_COSMOS_EVALUATIONS_CONTAINER: str = "evaluations"
 
     @property
     def cors_origin_list(self) -> list[str]:

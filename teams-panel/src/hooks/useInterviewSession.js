@@ -46,7 +46,7 @@ export function useInterviewSession() {
     });
   }, [session]);
 
-  const submitAllAnswers = useCallback(async (recordingBlobName = '', cameraBlobName = '', finalAnswers = null) => {
+  const submitAllAnswers = useCallback(async (recordingBlobName = '', cameraBlobName = '', finalAnswers = null, focusEvents = []) => {
     if (!session) throw new Error('No session loaded');
     try {
       const result = await submitAnswers({
@@ -54,6 +54,7 @@ export function useInterviewSession() {
         answers: finalAnswers || answers,
         recording_blob_name: recordingBlobName,
         camera_blob_name: cameraBlobName,
+        focus_events: focusEvents,
       });
       return result;
     } catch (err) {

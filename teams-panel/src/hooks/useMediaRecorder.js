@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import fixWebmDuration from 'fix-webm-duration';
 import { getUploadUrl } from '../api/sessionApi';
 
 /**
@@ -14,6 +15,7 @@ export function useMediaRecorder() {
   const screenChunksRef = useRef([]);
   const cameraChunksRef = useRef([]);
   const streamsRef = useRef([]);
+  const startTimeRef = useRef(null);
 
   const startRecording = useCallback(async () => {
     setError(null);
@@ -53,7 +55,11 @@ export function useMediaRecorder() {
         : 'video/webm';
 
       if (screenStream) {
-        const screenRecorder = new MediaRecorder(screenStream, { mimeType });
+        const screenRecorder = new MediaRecorder(screenStream, {
+          mimeType,
+          videoBitsPerSecond: 800_000,
+          audioBitsPerSecond: 64_000,
+        });
         screenRecorder.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) screenChunksRef.current.push(e.data);
         };
@@ -62,7 +68,11 @@ export function useMediaRecorder() {
       }
 
       if (cameraStream) {
-        const cameraRecorder = new MediaRecorder(cameraStream, { mimeType });
+        const cameraRecorder = new MediaRecorder(cameraStream, {
+          mimeType,
+          videoBitsPerSecond: 500_000,
+          audioBitsPerSecond: 64_000,
+        });
         cameraRecorder.ondataavailable = (e) => {
           if (e.data && e.data.size > 0) cameraChunksRef.current.push(e.data);
         };
@@ -71,6 +81,7 @@ export function useMediaRecorder() {
       }
 
       setIsRecording(true);
+      startTimeRef.current = Date.now();
       console.log(`Recording started. Screen: ${!!screenStream}, Camera: ${!!cameraStream}`);
     } catch (err) {
       console.error('Failed to start recording:', err);
@@ -108,16 +119,24 @@ export function useMediaRecorder() {
     async (sessionId) => {
       return new Promise((resolve) => {
         setIsRecording(false);
+        const durationMs = Math.max(1, Date.now() - (startTimeRef.current || Date.now()));
 
         const stopAndGetBlob = (recorder, chunksRef) => {
           return new Promise((r) => {
             if (!recorder || recorder.state === 'inactive') {
-              r(chunksRef.current.length ? new Blob(chunksRef.current, { type: 'video/webm' }) : null);
+              if (chunksRef.current.length) {
+                const rawBlob = new Blob(chunksRef.current, { type: 'video/webm' });
+                fixWebmDuration(rawBlob, durationMs, (fixedBlob) => r(fixedBlob));
+              } else {
+                r(null);
+              }
               return;
             }
             recorder.onstop = () => {
-              const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
-              r(blob);
+              const rawBlob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
+              fixWebmDuration(rawBlob, durationMs, (fixedBlob) => {
+                r(fixedBlob);
+              });
             };
             recorder.stop();
           });

@@ -41,8 +41,8 @@ class EvaluationEngine:
     @property
     def llm_client(self):
         if self._llm_client is None:
-            from openai import AzureOpenAI
-            self._llm_client = AzureOpenAI(
+            from openai import AsyncAzureOpenAI
+            self._llm_client = AsyncAzureOpenAI(
                 api_key=self.settings.AZURE_OPENAI_API_KEY,
                 api_version=self.settings.AZURE_OPENAI_API_VERSION,
                 azure_endpoint=self.settings.AZURE_OPENAI_ENDPOINT,
@@ -88,7 +88,12 @@ class EvaluationEngine:
                     logger.error(f"Failed to parse {sp_file.name}: {e}")
                     return None
 
-            parse_tasks = [parse_resume(sp_file, content) for sp_file, content in resume_files]
+            doc_semaphore = asyncio.Semaphore(4)  # Azure Doc Intelligence S0 tier
+            async def parse_resume_limited(sp_file, content):
+                async with doc_semaphore:
+                    return await parse_resume(sp_file, content)
+
+            parse_tasks = [parse_resume_limited(sp_file, content) for sp_file, content in resume_files]
             parsed_results = await asyncio.gather(*parse_tasks)
             parsed_resumes = [res for res in parsed_results if res is not None]
 
@@ -141,17 +146,26 @@ class EvaluationEngine:
                 name = resume["profile"].name
                 candidate_texts[name] = resume
 
+            eval_semaphore = asyncio.Semaphore(3)  # Conservative for Azure OpenAI TPM limits
             async def eval_candidate(name, cdata):
-                return await self._evaluate_candidate(
-                    candidate_name=name,
-                    resume_text=cdata["text"],
-                    profile=cdata["profile"],
-                    filename=cdata["filename"],
-                    web_url=cdata.get("web_url", ""),
-                    file_id=cdata["file_id"],
-                    job_description=request.job_description,
-                    skills=skills_input,
-                )
+                async with eval_semaphore:
+                    logger.info(f"Starting evaluation: {name}")
+                    try:
+                        result = await self._evaluate_candidate(
+                            candidate_name=name,
+                            resume_text=cdata["text"],
+                            profile=cdata["profile"],
+                            filename=cdata["filename"],
+                            web_url=cdata.get("web_url", ""),
+                            file_id=cdata["file_id"],
+                            job_description=request.job_description,
+                            skills=skills_input,
+                        )
+                        logger.info(f"Completed evaluation: {name}")
+                        return result
+                    except Exception as e:
+                        logger.error(f"Evaluation failed for {name}: {e}")
+                        return None
 
             eval_tasks = [eval_candidate(name, cdata) for name, cdata in candidate_texts.items()]
             eval_results = await asyncio.gather(*eval_tasks)
@@ -323,7 +337,7 @@ class EvaluationEngine:
         # Production: use GPT-4o
         prompt = build_evaluation_prompt(job_description, resume_text, skills)
         async def _call():
-            response = self.llm_client.chat.completions.create(
+            response = await self.llm_client.chat.completions.create(
                 model=self.settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
                 messages=[
                     {"role": "system", "content": "You are an expert technical recruiter."},

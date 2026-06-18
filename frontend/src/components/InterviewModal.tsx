@@ -66,10 +66,9 @@ export default function InterviewModal({
     }
   };
 
-  // Get tomorrow's date as minimum
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split('T')[0];
+  // Get today's local date as minimum
+  const today = new Date();
+  const minDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>

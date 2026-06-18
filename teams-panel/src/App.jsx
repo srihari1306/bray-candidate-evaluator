@@ -75,7 +75,7 @@ export default function App() {
     setStage('question');
   }, [startRecording]);
 
-  const handleAllDone = useCallback(async (lastTranscript) => {
+  const handleAllDone = useCallback(async (lastTranscript, focusEvents = []) => {
     setStage('goodbye');
 
     try {
@@ -94,7 +94,7 @@ export default function App() {
       ];
 
       // Submit answers to backend (triggers async evaluation)
-      await submitAllAnswers(screenBlobName || '', cameraBlobName || '', finalAnswers);
+      await submitAllAnswers(screenBlobName || '', cameraBlobName || '', finalAnswers, focusEvents);
     } catch (err) {
       console.error('Error during interview completion:', err);
       // Don't change stage — stay on goodbye
@@ -102,7 +102,7 @@ export default function App() {
   }, [session, answers, stopRecordingAndUpload, submitAllAnswers]);
 
   const handleAnswerDone = useCallback(
-    (transcript) => {
+    (transcript, focusEvents = []) => {
       const totalQuestions = session?.questions?.length || 3;
       if (questionIndex < totalQuestions - 1) {
         recordAnswer(questionIndex, transcript);
@@ -110,7 +110,7 @@ export default function App() {
       } else {
         // Last question — skip recordAnswer state update to avoid race conditions.
         // Pass the final transcript directly to handleAllDone.
-        handleAllDone(transcript);
+        handleAllDone(transcript, focusEvents);
       }
     },
     [questionIndex, recordAnswer, session, handleAllDone]

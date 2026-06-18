@@ -140,4 +140,33 @@ export interface InterviewSession {
   recording_sas_url: string;
   camera_sas_url?: string;
   completed_at: string | null;
+  proctoring_status?: 'pending' | 'analyzing' | 'clean' | 'review' | 'flagged' | 'failed';
+  proctoring_report?: {
+    overall_risk: 'low' | 'medium' | 'high';
+    risk_score: number;
+    cheating_detected: boolean;
+    browser: {
+      tab_switches: number;
+      focus_lost_count: number;
+      fullscreen_exits: number;
+      focus_lost_events: Array<{type: string, timestamp: string}>;
+    };
+    transcript: {
+      suspicion_score: number;
+      reasoning: string;
+    };
+    camera: {
+      face_coverage_percent: number;
+      multiple_faces_detected: boolean;
+      face_absent_segments: Array<{start: string, end: string}>;
+      frames_analyzed: number;
+    };
+    screen: {
+      suspicious_urls_detected: string[];
+      suspicious_labels: string[];
+      suspicious_frame_count: number;
+      frames_analyzed: number;
+    };
+    analyzed_at: string;
+  };
 }
