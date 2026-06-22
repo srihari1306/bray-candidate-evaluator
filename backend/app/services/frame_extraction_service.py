@@ -1,11 +1,11 @@
 """
-Frame Extraction Service — downloads recordings and extracts frames via ffmpeg.
+Frame Extraction Service — downloads recordings and extracts frames via OpenCV.
 """
 
 import asyncio
 import os
-import glob
 import tempfile
+import cv2
 
 import httpx
 
@@ -33,7 +33,7 @@ async def extract_frames(blob_name: str, interval_seconds: int = 5) -> list[byte
 
     1. Generates a fresh read SAS URL for the blob.
     2. Downloads the blob.
-    3. Writes to a temp directory and runs ffmpeg to extract JPEG frames.
+    3. Writes to a temp file and runs OpenCV to extract JPEG frames.
     4. Returns a list of JPEG byte arrays.
 
     Args:
@@ -65,54 +65,54 @@ async def extract_frames(blob_name: str, interval_seconds: int = 5) -> list[byte
         logger.error(f"Failed to download blob {blob_name}: {e}", exc_info=True)
         return []
 
-    # Extract frames using ffmpeg in a temp directory
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Use blob_name to make temp file unique so parallel extractions don't collide
-        safe_name = blob_name.replace("/", "_").replace("\\", "_")
-        input_path = os.path.join(tmpdir, f"{safe_name}.webm")
-        output_pattern = os.path.join(tmpdir, "frame_%04d.jpg")
+    # Run OpenCV extraction in a background thread to prevent blocking the event loop
+    frames = await asyncio.to_thread(_extract_frames_cv2, video_bytes, interval_seconds, blob_name)
+    return frames
 
-        # Write video bytes to temp file
-        with open(input_path, "wb") as f:
+def _extract_frames_cv2(video_bytes: bytes, interval_seconds: int, blob_name: str) -> list[bytes]:
+    """Synchronous function to extract frames using OpenCV."""
+    frames = []
+    temp_file_path = ""
+    try:
+        # Write video bytes to a temporary file
+        fd, temp_file_path = tempfile.mkstemp(suffix=".webm")
+        with os.fdopen(fd, 'wb') as f:
             f.write(video_bytes)
 
-        # Run ffmpeg asynchronously
-        cmd = [
-            "ffmpeg",
-            "-i", input_path,
-            "-vf", f"fps=1/{interval_seconds}",
-            "-q:v", "2",
-            output_pattern,
-            "-y",
-            "-loglevel", "error",
-        ]
+        cap = cv2.VideoCapture(temp_file_path)
+        if not cap.isOpened():
+            logger.error(f"OpenCV failed to open video file for {blob_name}")
+            return frames
 
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await process.communicate()
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        if fps <= 0 or not fps:
+            fps = 30.0  # Fallback assumption if metadata is missing
 
-            if process.returncode != 0:
-                stderr_text = stderr.decode("utf-8", errors="replace")
-                logger.error(f"ffmpeg failed for {blob_name} (exit code {process.returncode}): {stderr_text}")
-                return []
+        frame_interval = max(1, int(fps * interval_seconds))
+        frame_count = 0
 
-        except FileNotFoundError:
-            logger.error("ffmpeg not found in PATH — cannot extract frames")
-            return []
-        except Exception as e:
-            logger.error(f"ffmpeg execution error for {blob_name}: {e}", exc_info=True)
-            return []
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            if frame_count % frame_interval == 0:
+                success, buffer = cv2.imencode('.jpg', frame)
+                if success:
+                    frames.append(buffer.tobytes())
+            frame_count += 1
 
-        # Read extracted frame files in sorted order
-        frame_files = sorted(glob.glob(os.path.join(tmpdir, "frame_*.jpg")))
-        frames = []
-        for frame_file in frame_files:
-            with open(frame_file, "rb") as f:
-                frames.append(f.read())
-
+        cap.release()
         logger.info(f"Extracted {len(frames)} frames from {blob_name}")
-        return frames
+        
+    except Exception as e:
+        logger.error(f"OpenCV execution error for {blob_name}: {e}", exc_info=True)
+    finally:
+        # Cleanup temporary file
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except Exception as cleanup_err:
+                logger.warning(f"Failed to cleanup temp file {temp_file_path}: {cleanup_err}")
+
+    return frames
