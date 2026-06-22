@@ -54,10 +54,7 @@ async def extract_frames(blob_name: str, interval_seconds: int = 5) -> list[byte
         logger.warning(f"Could not generate SAS URL for {blob_name}")
         return []
 
-    # Skip frame extraction in mock mode
-    if "mock" in sas_url:
-        logger.warning(f"Mock SAS URL detected for {blob_name} — skipping frame extraction")
-        return []
+
 
     # Download blob bytes
     try:

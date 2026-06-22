@@ -7,23 +7,15 @@ from app.utils.logger import get_logger
 logger = get_logger("services.blob_recording")
 
 
-def _is_placeholder(conn_str: str) -> bool:
-    if not conn_str:
-        return True
-    conn_str_lower = conn_str.lower()
-    return "accountname=..." in conn_str_lower or "your-account" in conn_str_lower or "endpoint=" in conn_str_lower and "xxx" in conn_str_lower
+
 
 def generate_upload_sas_url(session_id: str, type: str = "screen") -> dict:
     settings = get_settings()
     blob_name = f"{session_id}_{type}.webm"
     container_name = settings.AZURE_BLOB_RECORDINGS_CONTAINER
 
-    if _is_placeholder(settings.AZURE_STORAGE_CONNECTION_STRING):
-        logger.warning("AZURE_STORAGE_CONNECTION_STRING not configured or placeholder — returning mock URL")
-        return {
-            "sas_url": f"https://mock-storage.blob.core.windows.net/{container_name}/{blob_name}?mock=true",
-            "blob_name": blob_name,
-        }
+    if not settings.AZURE_STORAGE_CONNECTION_STRING or "your-" in settings.AZURE_STORAGE_CONNECTION_STRING.lower():
+        raise ValueError("AZURE_STORAGE_CONNECTION_STRING is not configured.")
 
     try:
         from azure.storage.blob import (
@@ -84,8 +76,8 @@ def generate_read_sas_url(blob_name: str) -> str:
     settings = get_settings()
     container_name = settings.AZURE_BLOB_RECORDINGS_CONTAINER
 
-    if _is_placeholder(settings.AZURE_STORAGE_CONNECTION_STRING):
-        return f"https://mock-storage.blob.core.windows.net/{container_name}/{blob_name}?mock=true"
+    if not settings.AZURE_STORAGE_CONNECTION_STRING or "your-" in settings.AZURE_STORAGE_CONNECTION_STRING.lower():
+        raise ValueError("AZURE_STORAGE_CONNECTION_STRING is not configured.")
 
     try:
         from azure.storage.blob import (
@@ -116,4 +108,4 @@ def generate_read_sas_url(blob_name: str) -> str:
 
     except Exception as e:
         logger.error(f"✗ Failed to generate read SAS URL: {e}", exc_info=True)
-        return ""
+        raise

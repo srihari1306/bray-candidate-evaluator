@@ -19,8 +19,7 @@ async def get_speech_token() -> dict:
     settings = get_settings()
 
     if not settings.AZURE_SPEECH_KEY or "your" in settings.AZURE_SPEECH_KEY.lower():
-        logger.warning("AZURE_SPEECH_KEY not configured or is placeholder — returning mock token")
-        return {"token": "mock-speech-token", "region": settings.AZURE_SPEECH_REGION}
+        raise ValueError("AZURE_SPEECH_KEY is not configured properly.")
 
     token_url = (
         f"https://{settings.AZURE_SPEECH_REGION}.api.cognitive.microsoft.com"

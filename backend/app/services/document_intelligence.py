@@ -42,13 +42,12 @@ class DocumentIntelligenceService:
         """
         logger.info(f"Extracting text from: {filename}")
 
-        # Fallback if keys are missing/placeholder
+        # Check if keys are missing/placeholder
         if (not self.settings.AZURE_DOC_INTELLIGENCE_ENDPOINT or 
             "your-" in self.settings.AZURE_DOC_INTELLIGENCE_ENDPOINT or
             not self.settings.AZURE_DOC_INTELLIGENCE_KEY or
             "your-" in self.settings.AZURE_DOC_INTELLIGENCE_KEY):
-            logger.warning(f"Using mock document intelligence extraction for {filename}")
-            return self._get_mock_resume_text(filename)
+            raise ValueError("Azure AI Document Intelligence credentials are not properly configured.")
 
         content_type = self._get_content_type(filename)
 
@@ -64,17 +63,13 @@ class DocumentIntelligenceService:
             result = await asyncio.to_thread(run_sync)
             return result.content or ""
 
-        try:
-            text = await retry_async(
-                _analyze,
-                max_retries=self.settings.MAX_RETRIES,
-                operation_name=f"Document Intelligence: {filename}",
-            )
-            logger.info(f"Extracted {len(text)} characters from {filename}")
-            return text
-        except Exception as e:
-            logger.warning(f"Document Intelligence API call failed: {e}. Falling back to mock extraction.")
-            return self._get_mock_resume_text(filename)
+        text = await retry_async(
+            _analyze,
+            max_retries=self.settings.MAX_RETRIES,
+            operation_name=f"Document Intelligence: {filename}",
+        )
+        logger.info(f"Extracted {len(text)} characters from {filename}")
+        return text
 
     async def parse_resume_structure(
         self, resume_text: str, llm_client=None

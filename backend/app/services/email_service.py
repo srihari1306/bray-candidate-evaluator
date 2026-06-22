@@ -1,7 +1,6 @@
 """
-Gmail SMTP Email Service for interview invitations.
-Sends interview scheduling emails using smtplib when MOCK_EMAIL=false.
-Otherwise, falls back to logging the invitation to the console.
+M365 SMTP Email Service for interview invitations.
+Sends interview scheduling emails using smtplib.
 """
 
 import smtplib
@@ -121,7 +120,7 @@ async def send_interview_email(
 ) -> bool:
     """
     Send an interview invitation email to the candidate.
-    Uses smtplib for Gmail SMTP when MOCK_EMAIL=false, else logs it.
+    Uses smtplib for SMTP.
     """
     from app.utils.security import generate_session_signature
     from datetime import timedelta
@@ -156,39 +155,34 @@ async def send_interview_email(
     logger.info(f"  Interview URL: {interview_url}")
     logger.info(f"─────────────────────────")
 
-    if settings.MOCK_EMAIL or not settings.GMAIL_USER or not settings.GMAIL_APP_PASSWORD:
-        logger.warning("MOCK_EMAIL is True or Gmail credentials not configured. Email logged to console only.")
-        logger.info(f"[MOCK EMAIL] HTML content length: {len(html_content)} characters")
-        return True
-
     # Send via SMTP
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = "Interview Invitation — Smart Interviewer"
-        msg["From"] = settings.GMAIL_USER
+        msg["From"] = settings.SMTP_USER
         msg["To"] = candidate_email
 
         part = MIMEText(html_content, "html")
         msg.attach(part)
 
-        # Connect to Gmail SMTP server
-        logger.info(f"Connecting to Gmail SMTP server using user: {settings.GMAIL_USER}...")
+        # Connect to SMTP server
+        logger.info(f"Connecting to SMTP server {settings.SMTP_HOST}:{settings.SMTP_PORT} using user: {settings.SMTP_USER}...")
         
         # Run blocking SMTP calls in executor
         import asyncio
         def _send():
-            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
                 server.starttls()
-                server.login(settings.GMAIL_USER, settings.GMAIL_APP_PASSWORD)
-                server.sendmail(settings.GMAIL_USER, candidate_email, msg.as_string())
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                server.sendmail(settings.SMTP_USER, candidate_email, msg.as_string())
         
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _send)
         
-        logger.info(f"✓ Email sent successfully via Gmail SMTP to {candidate_email}")
+        logger.info(f"✓ Email sent successfully via SMTP to {candidate_email}")
         return True
 
     except Exception as e:
-        logger.error(f"✗ Gmail SMTP send failed: {e}", exc_info=True)
-        logger.info("Email content was logged above for manual reference.")
-        return False
+        logger.error(f"✗ SMTP send failed: {e}", exc_info=True)
+        # We re-raise the exception to enforce hard failure instead of silent fallback.
+        raise

@@ -47,58 +47,40 @@ async def evaluate_single_answer(question_text: str, transcript: str) -> dict:
         logger.warning("Empty transcript — assigning score 0")
         return {"score": 0, "reasoning": "No answer provided."}
 
-    # Fallback to local mock evaluation if Azure OpenAI is not configured
+    # Fail hard if Azure OpenAI is not configured
     if (not settings.AZURE_OPENAI_API_KEY or 
         "your-" in settings.AZURE_OPENAI_API_KEY or 
         not settings.AZURE_OPENAI_ENDPOINT or 
         "your-" in settings.AZURE_OPENAI_ENDPOINT):
-        
-        word_count = len(transcript.split())
-        if word_count < 5:
-            score = 3
-            reasoning = "The candidate provided a very brief answer with insufficient detail."
-        elif word_count < 15:
-            score = 6
-            reasoning = "The candidate answered the question but could have provided more depth and context."
-        else:
-            score = min(10, 7 + min(3, int(word_count / 20)))
-            reasoning = f"The candidate gave a detailed response ({word_count} words) showing good clarity and depth of experience."
-            
-        logger.info(f"  ✓ Mock Evaluated Q: score={score}/10 — {reasoning}")
-        return {"score": score, "reasoning": reasoning}
+        raise ValueError("Azure OpenAI credentials are not properly configured.")
 
     user_prompt = f"Interview Question: {question_text}\nCandidate Answer: {transcript}"
 
-    try:
-        import asyncio
-        client = _get_openai_client()
-        
-        # Run blocking OpenAI call in a background thread to keep event loop free
-        def _execute_api():
-            return client.chat.completions.create(
-                model=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
-                messages=[
-                    {"role": "system", "content": EVALUATION_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.2,
-                max_tokens=200,
-            )
+    import asyncio
+    client = _get_openai_client()
+    
+    # Run blocking OpenAI call in a background thread to keep event loop free
+    def _execute_api():
+        return client.chat.completions.create(
+            model=settings.AZURE_OPENAI_CHAT_DEPLOYMENT,
+            messages=[
+                {"role": "system", "content": EVALUATION_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+            max_tokens=200,
+        )
 
-        response = await asyncio.to_thread(_execute_api)
-        result_text = response.choices[0].message.content
-        result = json.loads(result_text)
+    response = await asyncio.to_thread(_execute_api)
+    result_text = response.choices[0].message.content
+    result = json.loads(result_text)
 
-        score = max(0, min(10, int(result.get("score", 5))))
-        reasoning = result.get("reasoning", "No reasoning provided.")
+    score = max(0, min(10, int(result.get("score", 5))))
+    reasoning = result.get("reasoning", "No reasoning provided.")
 
-        logger.info(f"  ✓ Evaluated: score={score}/10 — {reasoning[:60]}...")
-        return {"score": score, "reasoning": reasoning}
-
-    except Exception as e:
-        logger.error(f"  ✗ Evaluation failed: {e}", exc_info=True)
-        return {"score": 5, "reasoning": f"Evaluation error: {str(e)[:100]}"}
+    logger.info(f"  ✓ Evaluated: score={score}/10 — {reasoning[:60]}...")
+    return {"score": score, "reasoning": reasoning}
 
 
 async def evaluate_answers(session_id: str, answers: list[dict]) -> Optional[dict]:

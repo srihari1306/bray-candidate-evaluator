@@ -202,14 +202,12 @@ class EvaluationEngine:
         """Evaluate a single candidate."""
         logger.info(f"Evaluating candidate: {candidate_name}")
 
-        # Fallback to local mock evaluation if Azure OpenAI is not configured
+        # Fail hard if Azure OpenAI is not configured
         if (not self.settings.AZURE_OPENAI_API_KEY or 
             "your-" in self.settings.AZURE_OPENAI_API_KEY or 
             not self.settings.AZURE_OPENAI_ENDPOINT or 
             "your-" in self.settings.AZURE_OPENAI_ENDPOINT):
-            logger.warning(f"Using mock technical evaluation for candidate: {candidate_name}")
-            data = self._get_mock_evaluation_data(candidate_name, skills)
-            return self._build_result(data, candidate_name, profile, filename, web_url, file_id, skills)
+            raise ValueError("Azure OpenAI credentials are not properly configured.")
 
         # Production: use GPT-4o
         prompt = build_evaluation_prompt(job_description, resume_text, skills)
@@ -225,13 +223,8 @@ class EvaluationEngine:
             )
             return json.loads(response.choices[0].message.content)
 
-        try:
-            data = await retry_async(_call, max_retries=2, operation_name=f"Evaluate {candidate_name}")
-            return self._build_result(data, candidate_name, profile, filename, web_url, file_id, skills)
-        except Exception as e:
-            logger.warning(f"OpenAI evaluation failed: {e}. Falling back to mock evaluation.")
-            data = self._get_mock_evaluation_data(candidate_name, skills)
-            return self._build_result(data, candidate_name, profile, filename, web_url, file_id, skills)
+        data = await retry_async(_call, max_retries=2, operation_name=f"Evaluate {candidate_name}")
+        return self._build_result(data, candidate_name, profile, filename, web_url, file_id, skills)
 
     def _build_result(self, data, candidate_name, profile, filename, web_url, file_id, skills):
         skill_scores = [

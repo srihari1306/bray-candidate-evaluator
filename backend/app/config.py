@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Candidate Evaluator"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:3000,http://localhost:3001","http://127.0.0.1:3001"
+    CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:3000,http://localhost:3001,http://127.0.0.1:3001"
 
     # ─── Azure AD / Entra ID ───
     AZURE_TENANT_ID: str = ""
@@ -73,10 +73,11 @@ class Settings(BaseSettings):
     SCORE_WEIGHT_SKILLS: float = 0.3
     SCORE_WEIGHT_EXPERIENCE: float = 0.2
 
-    # ─── Smart Interviewer: Gmail SMTP Email ───
-    GMAIL_USER: str = ""
-    GMAIL_APP_PASSWORD: str = ""
-    MOCK_EMAIL: bool = False
+    # ─── Smart Interviewer: M365 SMTP Email ───
+    SMTP_HOST: str = "smtp.office365.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
 
     # ─── Smart Interviewer: Azure Speech Service ───
     AZURE_SPEECH_KEY: str = ""
