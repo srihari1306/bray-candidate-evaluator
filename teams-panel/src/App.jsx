@@ -69,6 +69,18 @@ export default function App() {
     init();
   }, [loadSession]);
 
+  // Block page reload/close during submission
+  useEffect(() => {
+    if (stage === 'submitting') {
+      const handleBeforeUnload = (e) => {
+        e.preventDefault();
+        e.returnValue = 'Your interview recordings are currently uploading. If you leave now, your submission will be lost. Are you sure you want to leave?';
+      };
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }
+  }, [stage]);
+
   const handleSetupDone = useCallback(async () => {
     // Start recording (screen + mic)
     await startRecording();
@@ -76,7 +88,7 @@ export default function App() {
   }, [startRecording]);
 
   const handleAllDone = useCallback(async (lastTranscript, focusEvents = []) => {
-    setStage('goodbye');
+    setStage('submitting');
 
     try {
       // Stop recording and upload
@@ -95,9 +107,13 @@ export default function App() {
 
       // Submit answers to backend (triggers async evaluation)
       await submitAllAnswers(screenBlobName || '', cameraBlobName || '', finalAnswers, focusEvents);
+      
+      // Navigate to goodbye only after successful upload
+      setStage('goodbye');
     } catch (err) {
       console.error('Error during interview completion:', err);
-      // Don't change stage — stay on goodbye
+      setLoadError('Failed to submit interview data. Please check your connection and try again.');
+      setStage('error');
     }
   }, [session, answers, stopRecordingAndUpload, submitAllAnswers]);
 
@@ -131,6 +147,18 @@ export default function App() {
           <div className="loading-spinner" />
           <h2>Loading your interview...</h2>
           <p>Please wait while we prepare your session.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'submitting') {
+    return (
+      <div className="panel-container">
+        <div className="loading-screen">
+          <div className="loading-spinner" />
+          <h2>Finishing Up...</h2>
+          <p>We are uploading your video recordings and submitting your answers. Please do not close or refresh this page.</p>
         </div>
       </div>
     );

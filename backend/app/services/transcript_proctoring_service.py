@@ -82,5 +82,13 @@ Respond in JSON only:
         return TranscriptSignals(suspicion_score=score, reasoning=reasoning)
 
     except Exception as e:
+        import openai
+        if isinstance(e, openai.BadRequestError) and "content_filter" in str(e):
+            logger.warning(f"Transcript content flagged by safety filter: {e}")
+            return TranscriptSignals(
+                suspicion_score=10, 
+                reasoning="Transcript analysis blocked: the candidate's answer contained highly inappropriate or explicit language that triggered the AI safety filter."
+            )
+            
         logger.error(f"Transcript proctoring failed: {e}", exc_info=True)
         return TranscriptSignals(suspicion_score=0, reasoning="Analysis failed due to an error.")
