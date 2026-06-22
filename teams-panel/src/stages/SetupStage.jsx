@@ -10,9 +10,10 @@ export default function SetupStage({ onDone, candidateName }) {
     microphone: false,
     screen: false,
     fullscreen: false,
+    consent: false,
   });
 
-  const allChecked = checks.camera && checks.microphone && checks.screen && checks.fullscreen;
+  const allChecked = checks.camera && checks.microphone && checks.screen && checks.fullscreen && checks.consent;
 
   const toggle = (key) => {
     setChecks((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -42,6 +43,12 @@ export default function SetupStage({ onDone, candidateName }) {
       icon: '⛶',
       title: 'Fullscreen Mode',
       description: 'Your interview will run in fullscreen mode — do not exit during the session.',
+    },
+    {
+      key: 'consent',
+      icon: '✅',
+      title: 'Recording Consent',
+      description: 'I consent to my camera, microphone, and screen being recorded for evaluation purposes.',
     },
   ];
 

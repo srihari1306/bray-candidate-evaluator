@@ -8,8 +8,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
-from app.config import get_settings
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Request
+from typing import Literal
+import time
+from app.utils.security import verify_session_signature, limiter
 from app.models.interview_models import (
     ScheduleInterviewRequest,
     ScheduleInterviewResponse,
@@ -32,6 +34,30 @@ from app.utils.logger import get_logger
 
 router = APIRouter()
 logger = get_logger("router.interview")
+
+from app.config import get_settings
+
+def verify_session_auth_query(session_id: str, exp: str = "", sig: str = ""):
+    if not exp or not sig:
+        raise HTTPException(status_code=403, detail="Missing signature parameters")
+    try:
+        if int(exp) < int(time.time()):
+            raise HTTPException(status_code=410, detail="Session link expired")
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Invalid expiration format")
+    if not verify_session_signature(session_id, exp, sig):
+        raise HTTPException(status_code=403, detail="Invalid session signature")
+
+def verify_session_auth_body(request: SubmitAnswersRequest):
+    if not request.exp or not request.sig:
+        raise HTTPException(status_code=403, detail="Missing signature parameters")
+    try:
+        if int(request.exp) < int(time.time()):
+            raise HTTPException(status_code=410, detail="Session link expired")
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Invalid expiration format")
+    if not verify_session_signature(request.session_id, request.exp, request.sig):
+        raise HTTPException(status_code=403, detail="Invalid session signature")
 
 
 @router.post("/schedule", response_model=ScheduleInterviewResponse)
@@ -95,7 +121,7 @@ async def schedule_interview(request: ScheduleInterviewRequest):
     )
 
 
-@router.get("/session/{session_id}", response_model=SessionResponse)
+@router.get("/session/{session_id}", response_model=SessionResponse, dependencies=[Depends(verify_session_auth_query)])
 async def get_session(session_id: str):
     """
     Get session data and questions for the Teams panel.
@@ -107,32 +133,29 @@ async def get_session(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="Interview session not found")
 
-    # Update status to in_progress
-    if session.get("status") == InterviewStatus.SCHEDULED:
-        try:
-            await db.update_session(
-                session_id,
-                session["candidate_id"],
-                {"status": InterviewStatus.IN_PROGRESS},
-            )
-            logger.info(f"Session {session_id} status → in_progress")
-        except Exception as e:
-            logger.warning(f"Failed to update session status: {e}")
+    if session.get("status") in (InterviewStatus.IN_PROGRESS, InterviewStatus.COMPLETED, InterviewStatus.FAILED):
+        raise HTTPException(status_code=410, detail="Session has ended or is already in progress")
 
     return SessionResponse(
         session_id=session_id,
         candidate_name=session.get("candidate_name", "Candidate"),
         questions=session.get("questions", []),
-        status=InterviewStatus.IN_PROGRESS,
+        status=session.get("status", InterviewStatus.SCHEDULED),
     )
 
 
-@router.get("/speech-token", response_model=SpeechTokenResponse)
-async def speech_token():
+@router.get("/speech-token", response_model=SpeechTokenResponse, dependencies=[Depends(verify_session_auth_query)])
+@limiter.limit("5/minute")
+async def speech_token(request: Request, session_id: str):
     """
     Get a short-lived Azure Speech auth token.
     Keeps the Speech key off the client.
     """
+    db = get_interview_db()
+    session = await db.get_session(session_id)
+    if not session or session.get("status") != InterviewStatus.SCHEDULED:
+        raise HTTPException(status_code=409, detail="Invalid session status for speech token")
+        
     try:
         result = await get_speech_token()
         return SpeechTokenResponse(token=result["token"], region=result["region"])
@@ -141,11 +164,19 @@ async def speech_token():
         raise HTTPException(status_code=500, detail="Failed to obtain speech token")
 
 
-@router.get("/upload-url/{session_id}", response_model=UploadUrlResponse)
-async def get_upload_url(session_id: str, type: str = "screen"):
+@router.get("/upload-url/{session_id}", response_model=UploadUrlResponse, dependencies=[Depends(verify_session_auth_query)])
+@limiter.limit("5/minute")
+async def get_upload_url(request: Request, session_id: str, type: Literal["screen", "camera"] = "screen"):
     """
     Generate a SAS URL for uploading the interview recording.
     """
+    db = get_interview_db()
+    session = await db.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+    if session.get("status") != InterviewStatus.SCHEDULED:
+        raise HTTPException(status_code=409, detail="Invalid session status for upload")
+
     try:
         result = generate_upload_sas_url(session_id, type)
         return UploadUrlResponse(sas_url=result["sas_url"], blob_name=result["blob_name"])
@@ -160,14 +191,19 @@ async def submit_answers(request: SubmitAnswersRequest, background_tasks: Backgr
     Submit all interview answers. Triggers async evaluation.
     Returns 202 Accepted immediately so the panel doesn't wait.
     """
+    verify_session_auth_body(request)
+    
     db = get_interview_db()
 
     session = await db.get_session(request.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Interview session not found")
+        
+    if session.get("status") != InterviewStatus.SCHEDULED:
+        raise HTTPException(status_code=409, detail="Session is not scheduled")
 
     # Save recording blob references and SAS read URLs
-    updates = {}
+    updates = {"status": InterviewStatus.IN_PROGRESS}
     if request.recording_blob_name:
         try:
             recording_sas_url = generate_read_sas_url(request.recording_blob_name)

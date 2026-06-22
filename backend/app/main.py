@@ -20,12 +20,10 @@ logger = get_logger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: startup and shutdown events."""
     settings = get_settings()
     setup_logging(debug=settings.DEBUG, structured=not settings.DEBUG)
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
 
-    # Preload JSON databases into memory on startup
     from app.db.session_db import get_interview_db
     from app.db.evaluation_db import get_evaluation_db
     
@@ -33,12 +31,10 @@ async def lifespan(app: FastAPI):
     get_evaluation_db()
 
     yield
-
     logger.info("Shutting down application")
 
 
 def create_app() -> FastAPI:
-    """Create and configure the FastAPI application."""
     settings = get_settings()
 
     app = FastAPI(
@@ -50,11 +46,7 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
-    # ─── CORS ───
     origins = list(settings.cors_origin_list)
-    for port_origin in ["http://localhost:3001", "http://127.0.0.1:3001"]:
-        if port_origin not in origins:
-            origins.append(port_origin)
 
     app.add_middleware(
         CORSMiddleware,
@@ -63,15 +55,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # ─── Request timing middleware ───
-    @app.middleware("http")
-    async def add_timing_header(request: Request, call_next):
-        start = time.perf_counter()
-        response = await call_next(request)
-        elapsed = time.perf_counter() - start
-        response.headers["X-Process-Time"] = f"{elapsed:.3f}s"
-        return response
 
     # ─── Global exception handler ───
     @app.exception_handler(Exception)
@@ -84,6 +67,14 @@ def create_app() -> FastAPI:
                 "error_type": type(exc).__name__,
             },
         )
+
+    # ─── Rate Limiting ───
+    from slowapi.errors import RateLimitExceeded
+    from slowapi import _rate_limit_exceeded_handler
+    from app.utils.security import limiter
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # ─── Routers ───
     app.include_router(health.router, tags=["Health"])

@@ -18,6 +18,55 @@ SUSPICIOUS_OBJECT_LABELS = [
     "cell phone", "mobile phone", "smartphone", "telephone", "book", "paper"
 ]
 
+# Extended list of suspicious keywords covering AI, cheating, coding help, etc.
+SUSPICIOUS_KEYWORDS = [
+    # ===== AI Assistants =====
+    "chatgpt", "openai", "claude", "anthropic", "gemini", "bard", "google ai",
+    "google gemini", "microsoft copilot", "copilot", "github copilot", "perplexity",
+    "grok", "deepseek", "poe", "character ai", "you.com",
+    # ===== Search Engines =====
+    "google", "google search", "search results", "bing", "bing search", "duckduckgo",
+    "yahoo search", "brave search",
+    # ===== Programming Help =====
+    "stackoverflow", "stack overflow", "github", "gitlab", "geeksforgeeks", "w3schools",
+    "tutorialspoint", "freecodecamp", "programiz", "dev.to", "medium", "reddit",
+    "leetcode discuss", "hackerrank discussion", "codechef discuss",
+    # ===== Competitive Programming =====
+    "leetcode", "hackerrank", "codechef", "codeforces", "atcoder", "topcoder", "spoj",
+    # ===== Academic / Homework Help =====
+    "chegg", "coursehero", "course hero", "brainly", "quizlet", "studocu", "studocu.com",
+    "bartleby", "numerade", "socratic", "answers.com", "homework help",
+    "assignment solution", "sample answer",
+    # ===== AI Writing / Paraphrasing =====
+    "quillbot", "grammarly", "wordtune", "jasper", "copy.ai", "writesonic", "rytr", "paraphrase",
+    # ===== Communication Apps =====
+    "whatsapp", "telegram", "discord", "slack", "microsoft teams", "teams chat",
+    "zoom chat", "google meet", "messenger", "skype",
+    # ===== Cloud Storage / File Sharing =====
+    "google drive", "drive.google.com", "dropbox", "onedrive", "mega", "mega.nz",
+    "box.com", "pastebin", "gist.github",
+    # ===== Notes / Documents =====
+    "notion", "evernote", "onenote", "obsidian", "confluence", "google docs",
+    "google document", "word document", "pdf answer",
+    # ===== Browser / Tabs =====
+    "new tab", "incognito", "private browsing", "chrome", "firefox", "edge browser", "safari browser",
+    # ===== IDEs / Terminals (if not allowed) =====
+    "visual studio code", "vscode", "visual studio", "pycharm", "intellij", "eclipse",
+    "xcode", "terminal", "powershell", "command prompt", "bash", "shell",
+    # ===== Direct Cheating Queries =====
+    "give me the answer", "provide the answer", "solve this", "solve the problem",
+    "write the code", "generate code", "complete the code", "complete the assignment",
+    "explain the answer", "correct answer", "expected output", "solution", "answer key",
+    "step by step solution", "copy this", "copy paste", "paste answer", "how to solve",
+    "help me with", "interview questions and answers",
+    # ===== Code Related Searches =====
+    "python solution", "java solution", "c++ solution", "javascript solution",
+    "sql query answer", "algorithm solution", "data structure solution",
+    "leetcode solution", "coding answer",
+    # ===== Generic Suspicious Terms =====
+    "cheat", "cheating", "bypass", "hack", "crack", "hidden answer", "secret answer",
+]
+
 
 async def analyze_screen_recording(blob_name: str) -> ScreenSignals:
     """
@@ -38,6 +87,7 @@ async def analyze_screen_recording(blob_name: str) -> ScreenSignals:
     settings = get_settings()
     interval = settings.PROCTORING_FRAME_INTERVAL_SECONDS
     suspicious_domains = [d.strip().lower() for d in settings.PROCTORING_SUSPICIOUS_DOMAINS.split(",") if d.strip()]
+    all_suspicious_terms = set(suspicious_domains + SUSPICIOUS_KEYWORDS)
 
     # Extract frames
     frames = await extract_frames(blob_name, interval)
@@ -76,10 +126,10 @@ async def analyze_screen_recording(blob_name: str) -> ScreenSignals:
 
                 full_text = " ".join(text_parts).lower()
 
-                # Check for suspicious domains in text
-                for domain in suspicious_domains:
-                    if domain in full_text:
-                        found_urls.add(domain)
+                # Check for suspicious domains and keywords in text
+                for term in all_suspicious_terms:
+                    if term in full_text:
+                        found_urls.add(term)
                         frame_suspicious = True
 
                 # Check for suspicious objects

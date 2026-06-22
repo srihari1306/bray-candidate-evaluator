@@ -1,7 +1,3 @@
-"""
-Blob Recording Service — SAS URL generation for interview recording uploads.
-Generates time-limited Shared Access Signature URLs for Azure Blob Storage.
-"""
 
 from datetime import datetime, timedelta, timezone
 
@@ -18,16 +14,6 @@ def _is_placeholder(conn_str: str) -> bool:
     return "accountname=..." in conn_str_lower or "your-account" in conn_str_lower or "endpoint=" in conn_str_lower and "xxx" in conn_str_lower
 
 def generate_upload_sas_url(session_id: str, type: str = "screen") -> dict:
-    """
-    Generate a write-only SAS URL for uploading an interview recording.
-
-    Args:
-        session_id: Interview session ID
-        type: "screen" or "camera"
-
-    Returns:
-        { sas_url: str, blob_name: str }
-    """
     settings = get_settings()
     blob_name = f"{session_id}_{type}.webm"
     container_name = settings.AZURE_BLOB_RECORDINGS_CONTAINER
@@ -66,7 +52,6 @@ def generate_upload_sas_url(session_id: str, type: str = "screen") -> dict:
         )
         account_key = conn_parts.get("AccountKey", "")
 
-        # Generate SAS token (write-only, 30-minute expiry)
         sas_token = generate_blob_sas(
             account_name=account_name,
             container_name=container_name,

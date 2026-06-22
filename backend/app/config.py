@@ -10,13 +10,12 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
 
     # ─── Application ───
     APP_NAME: str = "Candidate Evaluator"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:3000,http://localhost:3001"
+    CORS_ORIGINS: str = "http://localhost:5174,http://localhost:5173,http://localhost:3000,http://localhost:3001","http://127.0.0.1:3001"
 
     # ─── Azure AD / Entra ID ───
     AZURE_TENANT_ID: str = ""
@@ -79,12 +78,12 @@ class Settings(BaseSettings):
     GMAIL_APP_PASSWORD: str = ""
     MOCK_EMAIL: bool = False
 
-    # ─── Smart Interviewer: Persistence ───
-    INTERVIEWS_JSON_PATH: str = "data/interviews.json"
-
     # ─── Smart Interviewer: Azure Speech Service ───
     AZURE_SPEECH_KEY: str = ""
     AZURE_SPEECH_REGION: str = "eastus"
+
+    # ─── Persistence ───
+    INTERVIEWS_JSON_PATH: str = "data/interviews.json"
 
     # ─── Smart Interviewer: Teams Meeting ───
     TEAMS_STATIC_MEETING_URL: str = ""

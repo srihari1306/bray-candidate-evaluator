@@ -1,6 +1,3 @@
-"""
-Azure AD authentication using fastapi-azure-auth.
-"""
 
 from fastapi import Depends, HTTPException, status
 from fastapi_azure_auth import SingleTenantAzureAuthorizationCodeBearer

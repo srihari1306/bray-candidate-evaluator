@@ -1,7 +1,3 @@
-"""
-Azure OpenAI embedding service.
-Generates text embeddings using text-embedding-3-large for vector search.
-"""
 
 import asyncio
 import hashlib
@@ -149,5 +145,5 @@ class EmbeddingService:
 
 
 def get_embedding_service() -> EmbeddingService:
-    """Factory for embedding service."""
+
     return EmbeddingService()

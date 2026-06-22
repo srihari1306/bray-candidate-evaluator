@@ -29,11 +29,11 @@ def parse_browser_events(events: list) -> BrowserSignals:
 def aggregate_signals(browser: BrowserSignals, transcript: TranscriptSignals, camera: CameraSignals, screen: ScreenSignals) -> ProctoringReport:
     risk_score = 0
 
-    # Browser signals (max 50)
-    # Tab switches (max 20)
-    if browser.tab_switches >= 5:       risk_score += 20
-    elif browser.tab_switches >= 3:     risk_score += 15
-    elif browser.tab_switches >= 1:     risk_score += 8
+    # Browser signals
+    # Tab switches (high weight: definitely means cheating)
+    if browser.tab_switches >= 3:       risk_score += 60
+    elif browser.tab_switches == 2:     risk_score += 45
+    elif browser.tab_switches == 1:     risk_score += 30
 
     # Fullscreen exits (max 30) — stronger signal than tab switches
     if browser.fullscreen_exits >= 3:   risk_score += 30

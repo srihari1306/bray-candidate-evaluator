@@ -1,7 +1,3 @@
-"""
-Transcript Proctoring Service
-Analyzes spoken transcripts for signs of cheating.
-"""
 
 import json
 from typing import Optional

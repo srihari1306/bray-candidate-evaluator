@@ -1,6 +1,3 @@
-"""
-Pydantic schemas for the Smart Interviewer interview lifecycle.
-"""
 
 from pydantic import BaseModel, Field
 from typing import Optional
@@ -15,10 +12,8 @@ class InterviewStatus(str, Enum):
     FAILED = "failed"
 
 
-# ─── Request Models ─────────────────────────────────────────────────────────
 
 class ScheduleInterviewRequest(BaseModel):
-    """Request to schedule an interview for a candidate."""
     candidate_id: str = Field(..., description="Candidate ID from resume scanner")
     candidate_name: str = Field(..., description="Candidate full name")
     candidate_email: str = Field(..., description="Candidate email address")
@@ -28,15 +23,15 @@ class ScheduleInterviewRequest(BaseModel):
 
 
 class AnswerInput(BaseModel):
-    """A single answer from the candidate."""
     question_index: int = Field(..., ge=0, le=2)
     question_text: str
     transcript: str
 
 
 class SubmitAnswersRequest(BaseModel):
-    """Request to submit all answers after interview completion."""
     session_id: str
+    exp: str = ""
+    sig: str = ""
     answers: list[AnswerInput]
     recording_blob_name: str = Field(default="", description="Blob name of uploaded recording")
     camera_blob_name: str = Field(default="", description="Blob name of uploaded camera recording")
@@ -46,7 +41,6 @@ class SubmitAnswersRequest(BaseModel):
 # ─── Response Models ────────────────────────────────────────────────────────
 
 class ScheduleInterviewResponse(BaseModel):
-    """Response after scheduling an interview."""
     session_id: str
     status: InterviewStatus = InterviewStatus.SCHEDULED
     teams_link: str = ""
@@ -54,7 +48,6 @@ class ScheduleInterviewResponse(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    """Session data returned to the Teams panel."""
     session_id: str
     candidate_name: str
     questions: list[str]
@@ -62,19 +55,16 @@ class SessionResponse(BaseModel):
 
 
 class SpeechTokenResponse(BaseModel):
-    """Short-lived Azure Speech auth token."""
     token: str
     region: str
 
 
 class UploadUrlResponse(BaseModel):
-    """SAS URL for recording upload."""
     sas_url: str
     blob_name: str
 
 
 class ScoredAnswer(BaseModel):
-    """An evaluated answer with score and reasoning."""
     question_index: int
     question_text: str
     transcript: str
@@ -83,7 +73,6 @@ class ScoredAnswer(BaseModel):
 
 
 class InterviewResultsResponse(BaseModel):
-    """Full interview results for the dashboard."""
     session_id: str
     candidate_id: str
     candidate_name: str = ""
@@ -99,7 +88,6 @@ class InterviewResultsResponse(BaseModel):
 
 
 class InterviewSessionDocument(BaseModel):
-    """Full Cosmos DB document schema for an interview session."""
     id: str  # session UUID
     candidate_id: str
     candidate_name: str

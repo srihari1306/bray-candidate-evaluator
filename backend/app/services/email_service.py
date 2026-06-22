@@ -89,7 +89,7 @@ def _render_email_html(candidate_name: str, scheduled_time: str, interview_url: 
                                     <tr>
                                         <td style="padding:16px 20px;">
                                             <p style="color:#856404;font-size:13px;margin:0;line-height:1.5;">
-                                                ⚡ <strong>Note:</strong> This interview is conducted by an AI system. You will be asked 3 questions and your responses will be recorded for evaluation.
+                                                ⚡ <strong>Note:</strong> This interview is conducted by an AI system. You will be asked 3 questions. Your camera, microphone, and screen will be recorded for evaluation purposes.
                                             </p>
                                         </td>
                                     </tr>
@@ -123,9 +123,21 @@ async def send_interview_email(
     Send an interview invitation email to the candidate.
     Uses smtplib for Gmail SMTP when MOCK_EMAIL=false, else logs it.
     """
+    from app.utils.security import generate_session_signature
+    from datetime import timedelta
+    
     settings = get_settings()
 
-    interview_url = f"{settings.INTERVIEW_PANEL_BASE_URL}?session_id={session_id}"
+    try:
+        dt = datetime.fromisoformat(scheduled_time.replace("Z", "+00:00"))
+    except Exception:
+        dt = datetime.utcnow()
+    
+    exp_time = dt + timedelta(hours=2)
+    exp = str(int(exp_time.timestamp()))
+    sig = generate_session_signature(session_id, exp)
+
+    interview_url = f"{settings.INTERVIEW_PANEL_BASE_URL}?session_id={session_id}&exp={exp}&sig={sig}"
 
     # Render the HTML email
     html_content = _render_email_html(
